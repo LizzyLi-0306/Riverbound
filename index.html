@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071814">
+  <meta name="description" content="Riverbound browser-based 2D runner prototype">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23071814'/%3E%3Cpath d='M8 37c13-17 24 12 48-10-8 25-37 30-48 10Z' fill='%233dd6d0'/%3E%3C/svg%3E">
+  <title>Riverbound — Stage 1</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="game-shell" aria-label="Riverbound Stage 1 game">
+    <header class="game-header">
+      <div class="brand"><span class="brand-mark">≈</span><span>RIVERBOUND</span></div>
+      <div id="stage-label" class="stage-label">STAGE 01 · THE QUIET RIVER</div>
+    </header>
+
+    <section id="viewport" class="viewport">
+      <canvas id="game-canvas" width="1280" height="720" aria-label="Riverbound game view"></canvas>
+
+      <div id="hud" class="hud hidden" aria-live="polite">
+        <div class="hud-left-stack">
+          <div class="hud-group hud-life">
+            <span class="hud-label">LIFE</span><span id="life-value" class="life-pips"></span>
+          </div>
+          <div id="spirit-blessing-status" class="spirit-blessing-status" aria-label="Animal god blessings">
+            <span class="spirit-hud-icon" data-spirit="jaguar" aria-label="Jaguar blessing inactive">
+              <img class="spirit-base-icon" src="assets/ui/10_JAGUAR_BLESSING.png" alt=""><img class="spirit-rank-icon" alt="">
+            </span>
+            <span class="spirit-hud-icon" data-spirit="macaw" aria-label="Macaw blessing inactive">
+              <img class="spirit-base-icon" src="assets/ui/11_MACAW_BLESSING.png" alt=""><img class="spirit-rank-icon" alt="">
+            </span>
+            <span class="spirit-hud-icon" data-spirit="frog" aria-label="Dart Frog blessing inactive">
+              <img class="spirit-base-icon" src="assets/ui/12_FROG_BLESSING.png" alt=""><img class="spirit-rank-icon" alt="">
+            </span>
+          </div>
+        </div>
+        <div class="progress-wrap"><span id="progress-label">0%</span><div class="progress-track"><i id="progress-fill"></i></div></div>
+        <div class="hud-resources">
+          <div class="hud-group"><img class="ui-icon breath-icon" src="assets/ui/03_RIVER_BREATH.png" alt=""><span id="breath-value">0</span><span class="hud-label">BREATH</span></div>
+          <div class="hud-group"><img id="shield-icon" class="ui-icon shield-icon inactive" src="assets/ui/04_SHIELD.png" alt=""><span id="totem-value">EMPTY</span></div>
+          <div id="jump-status" class="hud-group blessing-status hidden">JUMP 0</div>
+          <div id="magnet-status" class="hud-group blessing-status hidden">MAGNET 0s</div>
+          <button id="pause-button" class="pause-button hidden" type="button" aria-label="Pause game" title="Pause (Esc)"><img src="assets/ui/07_PAUSE.png" alt=""></button>
+        </div>
+      </div>
+
+      <div id="title-screen" class="overlay title-screen">
+        <div class="stage-start-card">
+          <img id="stage-start-art" class="stage-start-art" src="assets/ui/STAGE_01_START.png" alt="Stage 1: The Quiet River">
+          <button id="start-button" class="stage-start-button" type="button" aria-label="Start Stage 1"><span>START</span></button>
+        </div>
+      </div>
+
+      <div id="story-screen" class="overlay story-screen hidden">
+        <div class="story-art-wrap">
+          <img class="story-art" src="assets/ui/STAGE_01.png" alt="" aria-hidden="true">
+          <button id="skip-story" class="text-button" aria-label="Skip story">SKIP <span>→</span></button>
+        </div>
+        <div class="story-card">
+          <p id="story-kicker" class="eyebrow">THE QUIET RIVER</p>
+          <p id="story-line" class="story-line"></p>
+          <div class="story-progress"><i id="story-progress-fill"></i></div>
+        </div>
+      </div>
+
+      <div id="altar-screen" class="overlay altar-screen hidden">
+        <div class="spirit-layout">
+          <div class="ritual-card">
+            <p id="altar-kicker" class="eyebrow">FIRST ALTAR</p>
+            <h2 id="altar-spirit-name">ANIMAL GOD</h2>
+            <p id="altar-spirit-title" class="cn-name">GUARDIAN OF THE RIVER</p>
+            <div class="offering-count"><img class="ui-icon breath-icon" src="assets/ui/03_RIVER_BREATH.png" alt=""><strong id="altar-breath">0</strong><span>RIVER BREATH AVAILABLE</span></div>
+            <p id="altar-requirement" class="ritual-copy">The river remembers every spark you carried here.</p>
+            <button id="offer-button" class="primary-button">OFFER</button>
+          </div>
+          <aside class="spirit-reveal" aria-live="polite">
+            <img id="altar-spirit-image" class="spirit-portrait" src="" alt="">
+            <p id="altar-spirit-caption" class="spirit-caption"></p>
+          </aside>
+        </div>
+      </div>
+
+      <div id="blessing-screen" class="overlay blessing-screen hidden">
+        <div class="spirit-choice-layout">
+          <div class="blessing-panel">
+            <p class="eyebrow">CHOOSE ONE OFFERING · PRESS 1 / 2</p>
+            <h2 id="blessing-spirit-heading">THE ANIMAL GOD ANSWERS</h2>
+            <p id="blessing-progress" class="blessing-progress"></p>
+            <div class="blessing-grid">
+              <button class="blessing-card" data-tier="low">
+                <span class="number">01</span><img class="blessing-art" src="assets/ui/06_WARNING.png" alt="">
+                <strong>LOW BLESSING</strong><small>Run-only blessing</small><em class="blessing-cost"></em>
+              </button>
+              <button class="blessing-card" data-tier="high">
+                <span class="number">02</span><img class="blessing-art" src="assets/ui/05_BLESSING_LEAF.png" alt="">
+                <strong>HIGH BLESSING</strong><small>Permanent blessing</small><em class="blessing-cost"></em>
+              </button>
+            </div>
+          </div>
+          <aside class="spirit-reveal spirit-reveal-choice">
+            <img id="blessing-spirit-image" class="spirit-portrait" src="" alt="">
+            <p id="blessing-spirit-caption" class="spirit-caption"></p>
+          </aside>
+        </div>
+      </div>
+
+      <div id="pause-screen" class="overlay pause-screen hidden"><div><p class="eyebrow">JOURNEY PAUSED</p><h2>PAUSED</h2><p>Press Esc or the play button to continue</p></div></div>
+
+      <div id="end-screen" class="overlay end-screen hidden">
+        <div class="end-card">
+          <img id="end-art" class="end-art" src="assets/ui/STAGE_COMPLETE.png" alt="" aria-hidden="true">
+          <p id="end-eyebrow" class="eyebrow visually-hidden">THE QUIET RIVER</p>
+          <h2 id="end-title" class="visually-hidden">STAGE 1 COMPLETE</h2>
+          <div id="end-stats" class="end-stats"></div>
+          <button id="restart-button" class="primary-button restart-button"><img src="assets/ui/09_RETRY.png" alt=""><span>RUN AGAIN · R</span></button>
+        </div>
+      </div>
+
+      <div id="touch-controls" class="touch-controls" aria-label="Touch controls">
+        <button id="touch-crouch" class="touch-button">CROUCH<small>HOLD</small></button>
+        <button id="touch-jump" class="touch-button accent">JUMP<small>HOLD</small></button>
+      </div>
+    </section>
+
+    <footer class="game-footer"><span>AUTO-RUN ACTIVE</span><span>SPACE / ↑ JUMP · ↓ / CTRL CROUCH · ESC PAUSE</span></footer>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
