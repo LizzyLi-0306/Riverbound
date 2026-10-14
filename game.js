@@ -24,7 +24,7 @@
   const STAGE_THREE_WORLD = { width: 10200, groundY: 440, altarX: 9800, finishX: 9800 };
   let WORLD = STAGE_ONE_WORLD;
   const VIEW = { width: 1280, height: 720 };
-  const PHYSICS = { speed: 230, airSpeedMultiplier: 1.45, gravity: 2200, jump: 900, jumpHold: 1500, maxHold: .16, coyote: .115, buffer: .14 };
+  const PHYSICS = { speed: 230, airSpeedMultiplier: 1.45, gravity: 2200, jump: 798, jumpHold: 1500, maxHold: .16, coyote: .115, buffer: .14 };
   const NIGHT_WATERLINE = 500;
   // The river PNG's visible shoreline begins well above the middle of its
   // transparent canvas, so this larger offset aligns the actual shoreline
@@ -33,19 +33,23 @@
   const LOG_VISUAL_PADDING = 48;
   const LOG_COLLISION_LEFT = 48;
   const LOG_COLLISION_RIGHT = 24;
+  const LOG_COLLISION_ACTIVE_RATIO = 2 / 3;
+  const LOG_COLLISION_ENTRY_GRACE = 26;
+  const LOG_TILT_RADIANS = -10 * Math.PI / 180;
+  const LOG_TILT_RISE = 34;
+  const ALTAR_GROUND_SINK = { damaged: 32, restored: 28 };
   const ROCKFALL_CONFIG = {
-    // The rock lands about .9s after the cue. At normal speed the player
-    // reaches its nearer target in roughly 1.5s, so jumping as soon as the
-    // warning appears crosses a settled obstacle instead of the falling art.
-    warningTime: .35, fallSpeed: 860, targetLead: 350, targetJitter: 20,
+    fallSpeed: 860, targetLead: 350, targetJitter: 20,
     landedTime: 1.05, exitSpeed: 720, colliderWidth: 62, colliderHeight: 78,
     minInterval: 5.4, maxInterval: 7.8, drawWidth: 88, drawHeight: 108
   };
   const SAVE_KEY = qaPersistenceTest ? 'riverbound-progress-v1-qa' : 'riverbound-progress-v1';
   const BLESSING_CONFIG = {
-    lowPriceRatio: .5,
-    highPriceBonus: 4,
-    permanentUnlockCost: { frog: 30, jaguar: 30, macaw: 30 },
+    pricesByStage: {
+      1: { low: 10, high: 16 },
+      2: { low: 12, high: 20 },
+      3: { low: 16, high: 26 }
+    },
     frog: { shieldInvulnerability: 2, shieldCooldown: 20 },
     jaguar: { temporaryAirJumps: 3, secondJumpPower: 846 },
     macaw: { temporaryDuration: 10, temporaryRadius: 260, permanentRadius: 66, healingInterval: 50 },
@@ -68,9 +72,36 @@
     }
   };
   const spiritDefs = [
-    { id: 'jaguar', name: 'JAGUAR GOD', title: 'GUARDIAN OF COURAGE', image: 'assets/spirits/jaguar-god-transparent.png' },
-    { id: 'macaw', name: 'MACAW GOD', title: 'GUARDIAN OF THE SKY', image: 'assets/spirits/macaw-god-transparent.png' },
-    { id: 'frog', name: 'POISON DART FROG GOD', title: 'GUARDIAN OF RENEWAL', image: 'assets/spirits/poison-dart-frog-god-transparent.png' }
+    {
+      id: 'jaguar', name: 'JAGUAR GOD', dialogueName: 'JAGUAR SPIRIT', title: 'GUARDIAN OF COURAGE', image: 'assets/spirits/jaguar-god-transparent.png',
+      dialogue: {
+        weak: [
+          'I used to walk for days without leaving the trees. Now the forest ends before my legs are tired.',
+          'Fire on one side. Machines on the other. Where is a hunter supposed to go?'
+        ],
+        restored: [
+          'I can smell the rain again. Thank you, child of the river.',
+          'When the ground breaks apart, a jaguar does not stop. It leaps.'
+        ]
+      }
+    },
+    {
+      id: 'macaw', name: 'MACAW GOD', dialogueName: 'MACAW SPIRIT', title: 'GUARDIAN OF THE SKY', image: 'assets/spirits/macaw-god-transparent.png',
+      dialogue: {
+        weak: ['My eyes are closed. There are fewer trees to watch over now.'],
+        restored: ['We birds gather what the forest drops and carry it far. Let me teach you to gather too.']
+      }
+    },
+    {
+      id: 'frog', name: 'POISON DART FROG GOD', dialogueName: 'FROG SPIRIT', title: 'GUARDIAN OF RENEWAL', image: 'assets/spirits/poison-dart-frog-god-transparent.png',
+      dialogue: {
+        weak: [
+          'My skin absorbs the water. I feel the poison long before you can see it.',
+          'When the water turns against us, my kind have nowhere to hide.'
+        ],
+        restored: ['Ah... clean water. I had almost forgotten how it felt.']
+      }
+    }
   ];
 
   function defaultProgression() {
@@ -144,6 +175,20 @@
     image.src = src;
     return [key, image];
   }));
+  const stageThreeScenerySources = {
+    sky: 'assets/scenery/stage3/STAGE_03_01_SKY_ATMOSPHERE.png',
+    mine: 'assets/scenery/stage3/STAGE_03_02_UPSTREAM_MINE_RIDGE.png',
+    forest: 'assets/scenery/stage3/STAGE_03_03_SPARSE_FOREST.png',
+    river: 'assets/scenery/stage3/STAGE_03_04_SHRUNKEN_RIVER.png',
+    riverbank: 'assets/scenery/stage3/STAGE_03_05_DRY_RIVERBANK.png',
+    foreground: 'assets/scenery/stage3/STAGE_03_06_LOW_FOREGROUND.png'
+  };
+  const stageThreeSceneryImages = Object.fromEntries(Object.entries(stageThreeScenerySources).map(([key, src]) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = src;
+    return [key, image];
+  }));
   const supplementSources = {
     log: 'assets/scenery/supplement/fallen-log.png',
     fullLog: 'assets/scenery/supplement/G01_FALLEN_LOG.png',
@@ -158,12 +203,38 @@
     image.src = src;
     return [key, image];
   }));
-  const altarArt = {
-    jaguar: { src: 'assets/altars/ALTAR_JAGUAR_GOD.png', crop: [20, 177, 1214, 947] },
-    macaw: { src: 'assets/altars/ALTAR_MACAW_GOD.png', crop: [90, 182, 1068, 924] },
-    frog: { src: 'assets/altars/ALTAR_POISON_DART_FROG_GOD.png', crop: [131, 244, 992, 834] }
+  const groundHazardArt = {
+    buttressRoot: { src: 'assets/hazards/ground/HAZARD_BUTTRESS_ROOT.png', crop: [45, 170, 1960, 500], width: 196, height: 76, groundSink: 12 },
+    floodDebris: { src: 'assets/hazards/ground/HAZARD_FLOOD_DEBRIS.png', crop: [40, 145, 1970, 555], width: 202, height: 82 },
+    sawnLogStack: { src: 'assets/hazards/ground/HAZARD_SAWN_LOG_STACK.png', crop: [195, 45, 1415, 800], width: 164, height: 102 },
+    charredLog: { src: 'assets/hazards/ground/HAZARD_CHARRED_LOG.png', crop: [55, 105, 1945, 585], width: 198, height: 78 },
+    riverbankRocks: { src: 'assets/hazards/ground/HAZARD_RIVERBANK_ROCKS.png', crop: [145, 205, 1490, 555], width: 172, height: 74 },
+    uprootedLog: { src: 'assets/hazards/ground/HAZARD_UPROOTED_LOG.png', crop: [35, 55, 1730, 800], width: 184, height: 98 }
   };
-  const altarImages = Object.fromEntries(Object.entries(altarArt).map(([key, art]) => {
+  const groundHazardKeys = Object.keys(groundHazardArt);
+  const groundHazardImages = Object.fromEntries(Object.entries(groundHazardArt).map(([key, art]) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = art.src;
+    return [key, image];
+  }));
+  const restoredAltarArt = {
+    jaguar: { src: 'assets/altars/altars_restored/jaguar_great_root_restored.png', crop: [0, 45, 1774, 810], width: 300 },
+    macaw: { src: 'assets/altars/altars_restored/macaw_clay_lick_restored.png', crop: [30, 90, 1475, 840], width: 290 },
+    frog: { src: 'assets/altars/altars_restored/frog_spring_basin_restored.png', crop: [0, 80, 1536, 850], width: 290 }
+  };
+  const restoredAltarImages = Object.fromEntries(Object.entries(restoredAltarArt).map(([key, art]) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.src = art.src;
+    return [key, image];
+  }));
+  const preRestorationAltarArt = {
+    jaguar: { src: 'assets/altars/altars_pre_restoration/jaguar_great_root.png', crop: [0, 45, 1774, 810], width: 300 },
+    macaw: { src: 'assets/altars/altars_pre_restoration/macaw_clay_lick.png', crop: [30, 90, 1475, 840], width: 290 },
+    frog: { src: 'assets/altars/altars_pre_restoration/frog_spring_basin.png', crop: [0, 80, 1536, 850], width: 290 }
+  };
+  const preRestorationAltarImages = Object.fromEntries(Object.entries(preRestorationAltarArt).map(([key, art]) => {
     const image = new Image();
     image.decoding = 'async';
     image.src = art.src;
@@ -190,6 +261,7 @@
       `assets/character/run-frames/run positions/pose-${String(frame).padStart(2, '0')}.png`
     ),
     slide: ['assets/character/slide.png'],
+    death: ['assets/character/die.png'],
     jump: ['assets/character/jump-1.png', 'assets/character/jump-2.png', 'assets/character/jump-3.png'],
     doubleJump: [1, 2, 3, 4, 5].map(frame => `assets/character/double-jump-${frame}.png`)
   };
@@ -221,13 +293,229 @@
   }));
 
   const ui = Object.fromEntries([
-    'hud','life-value','breath-value','totem-value','progress-label','progress-fill','title-screen','story-screen',
-    'story-line','story-progress-fill','altar-screen','altar-breath','blessing-screen','pause-screen','end-screen',
+    'hud','life-value','breath-value','totem-value','progress-label','progress-fill','cover-screen','background-story-screen','background-story-image','background-story-progress','background-story-text','title-screen','instruction-screen','story-screen',
+    'story-line','dialogue-speaker','dialogue-portrait','dialogue-box-art','dialogue-prompt',
+    'altar-screen','altar-breath','spirit-dialogue-screen','spirit-dialogue-portrait','spirit-dialogue-name','spirit-dialogue-line','spirit-dialogue-prompt','blessing-screen','pause-screen','end-screen',
     'altar-spirit-name','altar-spirit-title','altar-spirit-image','altar-spirit-caption',
     'blessing-spirit-heading','blessing-spirit-image','blessing-spirit-caption',
-    'end-title','end-eyebrow','end-stats','end-art','touch-jump','touch-crouch','pause-button','shield-icon','stage-label',
+    'end-title','end-eyebrow','end-stats','end-art','touch-jump','touch-crouch','pause-button','music-button','shield-icon','stage-label',
     'altar-requirement','offer-button','altar-kicker','jump-status','magnet-status','blessing-progress','stage-start-art'
   ].map(id => [id.replace(/-([a-z])/g, (_, c) => c.toUpperCase()), document.getElementById(id)]));
+
+  const audio = {
+    intro: document.getElementById('intro-bgm-audio'),
+    bgm: document.getElementById('bgm-audio'),
+    heartbeat: document.getElementById('heartbeat-audio'),
+    click: document.getElementById('ui-click-audio'),
+    spirits: {
+      frog: document.getElementById('altar-frog-audio'),
+      macaw: document.getElementById('altar-macaw-audio'),
+      jaguar: document.getElementById('altar-jaguar-audio')
+    },
+    effects: {
+      rockfall: document.getElementById('rockfall-audio'),
+      damage: document.getElementById('damage-audio'),
+      riverBreath: document.getElementById('river-breath-audio'),
+      heartHeal: document.getElementById('heart-heal-audio')
+    }
+  };
+  const AUDIO_CONFIG = { introVolume: .32, gameplayVolume: .28, heartbeatVolume: .48, fadeIn: 1.6, fadeOut: 1.25, spiritVolume: .62, spiritDuration: 4.5, spiritFadeOut: .7 };
+  const MUSIC_PREF_KEY = 'riverbound-music-enabled-v1';
+  audio.intro.volume = 0;
+  audio.bgm.volume = 0;
+  audio.click.volume = .55;
+  let musicEnabled = localStorage.getItem(MUSIC_PREF_KEY) !== 'false';
+  let audioStarted = false;
+  let bgmTargetVolume = 0;
+  let introAudioStarted = false;
+  let introTargetVolume = 0;
+  let activeSpiritSound = null;
+  let spiritSoundTimer = 0;
+  let gameAudioUnlocked = false;
+  let heartbeatActive = false;
+
+  function unlockGameAudio() {
+    if (gameAudioUnlocked) return;
+    gameAudioUnlocked = true;
+    [audio.heartbeat, ...Object.values(audio.spirits), ...Object.values(audio.effects)].forEach(sound => {
+      if (!sound) return;
+      sound.muted = true;
+      sound.currentTime = 0;
+      const unlockAttempt = sound.play();
+      if (!unlockAttempt) {
+        sound.pause();
+        sound.muted = false;
+        return;
+      }
+      unlockAttempt.then(() => {
+        sound.pause();
+        sound.currentTime = 0;
+        sound.muted = false;
+        sound.volume = AUDIO_CONFIG.spiritVolume;
+      }).catch(() => {
+        sound.muted = false;
+      });
+    });
+  }
+
+  function stopSpiritSound() {
+    if (activeSpiritSound) {
+      activeSpiritSound.pause();
+      activeSpiritSound.currentTime = 0;
+      activeSpiritSound.volume = AUDIO_CONFIG.spiritVolume;
+    }
+    activeSpiritSound = null;
+    spiritSoundTimer = 0;
+  }
+
+  function resumeIntroBgm() {
+    if (!musicEnabled || introAudioStarted || !['cover', 'prologue', 'story', 'instructions'].includes(state?.mode)) return;
+    audio.intro.volume = 0;
+    introTargetVolume = AUDIO_CONFIG.introVolume;
+    introAudioStarted = true;
+    audio.intro.play().catch(() => { introAudioStarted = false; });
+  }
+
+  function fadeOutIntroBgm() {
+    introTargetVolume = 0;
+  }
+
+  function stopIntroBgm() {
+    introTargetVolume = 0;
+    audio.intro.pause();
+    audio.intro.currentTime = 0;
+    audio.intro.volume = 0;
+    introAudioStarted = false;
+  }
+
+  function startBgm() {
+    stopSpiritSound();
+    audio.bgm.currentTime = 0;
+    audio.bgm.volume = 0;
+    if (!musicEnabled) {
+      bgmTargetVolume = 0;
+      audioStarted = false;
+      return;
+    }
+    bgmTargetVolume = AUDIO_CONFIG.gameplayVolume;
+    audioStarted = true;
+    audio.bgm.play().catch(() => { audioStarted = false; });
+  }
+
+  function resumeBgm() {
+    if (!musicEnabled || audioStarted || state?.mode !== 'running') return;
+    audio.bgm.volume = 0;
+    bgmTargetVolume = AUDIO_CONFIG.gameplayVolume;
+    audioStarted = true;
+    audio.bgm.play().catch(() => { audioStarted = false; });
+  }
+
+  function fadeOutBgm() {
+    bgmTargetVolume = 0;
+  }
+
+  function stopHeartbeat() {
+    audio.heartbeat.pause();
+    audio.heartbeat.currentTime = 0;
+    heartbeatActive = false;
+  }
+
+  function updateHeartbeatAudio() {
+    const shouldPlay = musicEnabled && state?.mode === 'running' && state.player.hp === 1;
+    if (!shouldPlay) {
+      if (heartbeatActive || !audio.heartbeat.paused) stopHeartbeat();
+      return;
+    }
+    if (heartbeatActive) return;
+    heartbeatActive = true;
+    audio.heartbeat.currentTime = 0;
+    audio.heartbeat.volume = AUDIO_CONFIG.heartbeatVolume;
+    audio.heartbeat.play().catch(() => { heartbeatActive = false; });
+  }
+
+  function updateAudio(dt) {
+    updateHeartbeatAudio();
+    if (introAudioStarted) {
+      const delta = introTargetVolume - audio.intro.volume;
+      const duration = delta > 0 ? AUDIO_CONFIG.fadeIn : AUDIO_CONFIG.fadeOut;
+      const step = AUDIO_CONFIG.introVolume * dt / duration;
+      audio.intro.volume = delta > 0
+        ? Math.min(introTargetVolume, audio.intro.volume + step)
+        : Math.max(introTargetVolume, audio.intro.volume - step);
+      if (introTargetVolume === 0 && audio.intro.volume <= .001) stopIntroBgm();
+    }
+    if (audioStarted) {
+      const delta = bgmTargetVolume - audio.bgm.volume;
+      const fadingIn = delta > 0;
+      const duration = fadingIn ? AUDIO_CONFIG.fadeIn : AUDIO_CONFIG.fadeOut;
+      const step = AUDIO_CONFIG.gameplayVolume * dt / duration;
+      audio.bgm.volume = fadingIn
+        ? Math.min(bgmTargetVolume, audio.bgm.volume + step)
+        : Math.max(bgmTargetVolume, audio.bgm.volume - step);
+      if (bgmTargetVolume === 0 && audio.bgm.volume <= .001) {
+        audio.bgm.volume = 0;
+        audio.bgm.pause();
+        audio.bgm.currentTime = 0;
+        audioStarted = false;
+      }
+    }
+    if (activeSpiritSound) {
+      spiritSoundTimer = Math.max(0, spiritSoundTimer - dt);
+      activeSpiritSound.volume = spiritSoundTimer < AUDIO_CONFIG.spiritFadeOut
+        ? AUDIO_CONFIG.spiritVolume * spiritSoundTimer / AUDIO_CONFIG.spiritFadeOut
+        : AUDIO_CONFIG.spiritVolume;
+      if (spiritSoundTimer <= 0) stopSpiritSound();
+    }
+  }
+
+  function playAltarSound(spiritId) {
+    stopSpiritSound();
+    const sound = audio.spirits[spiritId];
+    if (!sound) return;
+    activeSpiritSound = sound;
+    spiritSoundTimer = AUDIO_CONFIG.spiritDuration;
+    sound.volume = AUDIO_CONFIG.spiritVolume;
+    sound.currentTime = 0;
+    sound.play().catch(() => stopSpiritSound());
+  }
+
+  function playEffect(sound, volume) {
+    if (!sound) return;
+    sound.currentTime = 0;
+    sound.volume = volume;
+    sound.play().catch(() => {});
+  }
+
+  function playRockfallSound() { playEffect(audio.effects.rockfall, .62); }
+  function playDamageSound() { playEffect(audio.effects.damage, .72); }
+  function playRiverBreathSound() { playEffect(audio.effects.riverBreath, .56); }
+  function playHeartHealSound() { playEffect(audio.effects.heartHeal, .64); }
+
+  function playUiClick() {
+    audio.click.currentTime = 0;
+    audio.click.play().catch(() => {});
+  }
+
+  function updateMusicButton() {
+    ui.musicButton.setAttribute('aria-pressed', String(musicEnabled));
+    ui.musicButton.setAttribute('aria-label', musicEnabled ? 'Turn music off' : 'Turn music on');
+    ui.musicButton.title = musicEnabled ? 'Music on' : 'Music off';
+    ui.musicButton.querySelector('small').textContent = musicEnabled ? 'MUSIC ON' : 'MUSIC OFF';
+  }
+
+  function toggleMusic() {
+    musicEnabled = !musicEnabled;
+    localStorage.setItem(MUSIC_PREF_KEY, String(musicEnabled));
+    updateMusicButton();
+    if (musicEnabled) {
+      if (['cover', 'prologue', 'story', 'instructions'].includes(state.mode)) resumeIntroBgm();
+      else resumeBgm();
+    } else {
+      fadeOutIntroBgm();
+      fadeOutBgm();
+      stopHeartbeat();
+    }
+  }
 
   // Fixed shuffled order keeps each run learnable while varying platform silhouettes.
   const stageOnePlatforms = [
@@ -242,7 +530,7 @@
     { x: 6905, w: 950, art: 'extra' },
     { x: 7985, w: 650, art: 'medium' },
     { x: 8785, w: 500, art: 'short' },
-    { x: 9405, w: 800, art: 'long' }
+    { x: 9405, w: 865, art: 'long' }
   ];
   const stageOneObstacles = [
     { type: 'log', x: 1320, y: WORLD.groundY - 70, w: 100, h: 70, label: 'FALLEN LOG' },
@@ -286,7 +574,7 @@
     { x: 2030, w: 770, art: 'medium' }, { x: 2930, w: 1070, art: 'extra' },
     { x: 4130, w: 1070, art: 'extra' }, { x: 5330, w: 1170, art: 'extra' },
     { x: 6630, w: 670, art: 'medium' }, { x: 7430, w: 1170, art: 'extra' },
-    { x: 8730, w: 650, art: 'medium' }
+    { x: 8730, w: 670, art: 'medium' }
   ];
 
   const stageTwoObstacles = [
@@ -343,7 +631,7 @@
     { x: 2155, w: 700, art: 'medium' }, { x: 3000, w: 600, art: 'short' },
     { x: 3720, w: 980, art: 'extra' }, { x: 4820, w: 730, art: 'long' },
     { x: 5675, w: 1100, art: 'extra' }, { x: 6930, w: 600, art: 'short' },
-    { x: 7655, w: 900, art: 'long' }, { x: 8690, w: 1210, art: 'extra' }
+    { x: 7655, w: 900, art: 'long' }, { x: 8690, w: 1360, art: 'extra' }
   ];
 
   const stageThreeObstacles = [
@@ -418,7 +706,7 @@
     activeStage = STAGES[stageNumber] || STAGES[1];
     WORLD = activeStage.world;
     platforms = activeStage.id === 2 ? assignNightPlatformCycle(activeStage.platforms) : activeStage.platforms;
-    obstacles = activeStage.obstacles;
+    obstacles = assignGroundHazardVariants(activeStage.obstacles);
     collectibleDefs = activeStage.collectibles;
     tutorialDefs = activeStage.tutorials;
     pits = platforms.slice(0, -1).map((platform, index) => {
@@ -427,6 +715,25 @@
     });
     stageValidationIssues = validateStageConfig(activeStage);
     if (stageValidationIssues.length) console.warn(`Stage ${activeStage.id} layout issues`, stageValidationIssues);
+  }
+
+  function assignGroundHazardVariants(sourceObstacles) {
+    let bag = [];
+    let previous = null;
+    return sourceObstacles.map(obstacle => {
+      if (obstacle.type !== 'log') return obstacle;
+      if (bag.length === 0) {
+        bag = [...groundHazardKeys];
+        for (let i = bag.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [bag[i], bag[j]] = [bag[j], bag[i]];
+        }
+        if (previous && bag[bag.length - 1] === previous) [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+      }
+      const groundHazard = bag.pop();
+      previous = groundHazard;
+      return { ...obstacle, groundHazard };
+    });
   }
 
   function assignNightPlatformCycle(sourcePlatforms) {
@@ -450,15 +757,19 @@
   const input = { jump: false, jumpPressed: false, crouch: false, autoJumpKind: null };
   let state;
 
-  function chooseAnimalGod(excludeId = null) {
-    const requested = spiritDefs.find(spirit => spirit.id === qaSpirit && spirit.id !== excludeId);
+  function chooseAnimalGod(excludedIds = []) {
+    const excluded = new Set(excludedIds);
+    const requested = spiritDefs.find(spirit => spirit.id === qaSpirit && !excluded.has(spirit.id));
     if (requested) return requested;
-    const choices = spiritDefs.filter(spirit => spirit.id !== excludeId);
+    const choices = spiritDefs.filter(spirit => !excluded.has(spirit.id));
+    if (choices.length === 0) return spiritDefs[Math.floor(Math.random() * spiritDefs.length)];
     return choices[Math.floor(Math.random() * choices.length)];
   }
 
   function freshState(carry = {}) {
-    const selectedSpirit = carry.spirit || chooseAnimalGod(carry.excludeSpiritId);
+    const visitedSpiritIds = [...new Set((carry.visitedSpiritIds || []).filter(id => spiritDefs.some(spirit => spirit.id === id)))];
+    const selectedSpirit = carry.spirit || chooseAnimalGod(visitedSpiritIds);
+    const journeySpiritIds = [...new Set([...visitedSpiritIds, selectedSpirit.id])];
     const temp = {
       frogShield: Math.max(0, Math.min(1, carry.temp?.frogShield || 0)),
       jaguarJumps: Math.max(0, Math.min(BLESSING_CONFIG.jaguar.temporaryAirJumps, carry.temp?.jaguarJumps || 0)),
@@ -467,28 +778,104 @@
     if (progression.permanent.frog) temp.frogShield = 0;
     if (progression.permanent.jaguar) temp.jaguarJumps = 0;
     return {
-      mode: 'title', previousMode: null, time: 0, runTime: 0, cameraX: 0, storyIndex: 0, storyTimer: 0,
+      mode: 'title', previousMode: null, time: 0, runTime: 0, cameraX: 0,
+      storyIndex: 0, storyTimer: 0, storyRenderedChars: 0, storyLineComplete: false, instructionsShown: false, deathTimer: 0,
       stageNumber: activeStage.id, breath: carry.breath ?? 0, stageBreath: carry.stageBreath ?? 0,
       runBreathCollected: carry.runBreathCollected ?? 0, temp,
-      spirit: selectedSpirit, previousSpiritId: carry.excludeSpiritId || null,
-      altarOffered: !activeStage.hasAltar, offeringBusy: false, restored: false,
+      spirit: selectedSpirit, visitedSpiritIds: journeySpiritIds,
+      altarOffered: !activeStage.hasAltar, altarSoundPlayed: false, offeringBusy: false, restored: false, restorationTimer: 0,
+      altarInteractionCompleted: false, altarWeakDialogueShown: false, altarRestoredDialogueShown: false,
+      spiritDialoguePhase: null, spiritDialoguePage: 0, spiritDialogueTimer: 0,
+      spiritDialogueRenderedChars: 0, spiritDialogueLineComplete: false, spiritDialogueReturnMode: null,
       checkpoint: 200, message: '', messageTimer: 0, lastDamage: '', damageEvents: [], debugColliders: qaDebugColliders,
       rockfalls: [], rockfallTimer: 4.2 + Math.random() * 1.8,
       player: { x: 220, y: WORLD.groundY - 76, w: 44, h: 76, vy: 0, grounded: true, coyote: PHYSICS.coyote,
         jumpBuffer: 0, jumpHold: 0, airJumpAvailable: false, doubleJumpStarted: -Infinity,
         renewableShieldReady: progression.permanent.frog, renewableShieldCooldown: 0,
-        hp: carry.hp ?? 3, maxHp: 3, invuln: 0, totem: carry.totem ?? false, crouching: false },
+        hp: carry.hp ?? 3, maxHp: 3, invuln: 0, hurtFlash: 0, dead: false,
+        totem: carry.totem ?? false, crouching: false },
+      stageEntryCarry: {
+        hp: carry.hp ?? 3,
+        breath: carry.breath ?? 0,
+        stageBreath: carry.stageBreath ?? 0,
+        runBreathCollected: carry.runBreathCollected ?? 0,
+        totem: carry.totem ?? false,
+        temp: { ...temp },
+        spirit: selectedSpirit,
+        visitedSpiritIds: [...journeySpiritIds]
+      },
       collectibles: collectibleDefs.map((v, i) => ({ ...v, id: i, collected: false })),
       tutorials: tutorialDefs.map(v => ({ ...v })),
       particles: []
     };
   }
 
-  const stories = [
-    'The rainforest is slowly losing its life.',
-    'The rivers have fallen silent, and the animal spirits are growing weak.',
-    'A young guardian sets out to recover the scattered Breath of the River.',
-    'Help the water remember its way home.'
+  const DIALOGUE_CHARACTERS_PER_SECOND = 42;
+  const backgroundStory = [
+    {
+      image: 'assets/story/background-cg/02_CG_Dry_Year_1920x1080.png',
+      alt: 'The child and grandmother looking over a river narrowed by drought',
+      text: 'This is a dry year. Far across the ocean, the warm current has returned, and the rains are late. The river that carries the community to school, to the clinic, and to the market grows narrower every day. Canoes rest on cracked mud.'
+    },
+    {
+      image: 'assets/story/background-cg/03_CG_Unseen_Pollution_1920x1080.png',
+      alt: 'Mining machinery operating beside the drought-stricken river',
+      text: 'Upstream, the gold diggers have returned. They were driven out once, but the price of gold keeps rising along with their insatiable greed, so their machines are running again.'
+    },
+    {
+      image: 'assets/story/background-cg/03B_CG_Invisible_Mercury_1920x1080.png',
+      alt: 'The child and grandmother examining fish beside a river polluted by invisible mercury',
+      text: 'They wash the riverbed with mercury, a poison no one can see. The water looks the same. The fish still swim. But now, before a family eats, they stop and wonder what the river has brought to them.'
+    },
+    {
+      image: 'assets/story/background-cg/04_CG_Fading_Guardians_1920x1080.png',
+      alt: 'The child and grandmother remembering the animal guardians above the rainforest',
+      text: 'The animals are leaving. The forest grows quieter. The old stories of the guardians, once told every night, are rarely told anymore.'
+    },
+    {
+      image: 'assets/story/background-cg/04B_CG_Fading_Guardians_Polluted_1920x1080.png',
+      alt: 'The animal guardians fading above a polluted and damaged forest',
+      text: 'And without their stories, the guardians begin to fade.'
+    },
+    {
+      image: 'assets/story/background-cg/05_CG_Follow_The_River_1920x1080.png',
+      alt: 'The child looking along the river toward distant mountains',
+      text: 'The river is still here.'
+    },
+    {
+      image: 'assets/story/background-cg/06_CG_Begin_Journey_Collect_River_Breath_1920x1080.png',
+      alt: 'The child beginning a journey along the river',
+      text: 'But the connections it once carried, between people, animals, and the forest, are slipping away.'
+    }
+  ];
+  backgroundStory.forEach(entry => { const image = new Image(); image.decoding = 'async'; image.src = entry.image; });
+  let backgroundStoryShown = false;
+  let backgroundStoryIndex = 0;
+  const openingDialogue = [
+    {
+      speaker: 'CHILD', side: 'child', portrait: 'assets/story/child-worried.png', box: 'assets/story/dialog-right.png',
+      text: "Grandmother, the boat still can't leave. The children waited at the dock all morning."
+    },
+    {
+      speaker: 'GRANDMOTHER', side: 'grandmother', portrait: 'assets/story/grandmother-concerned.png', box: 'assets/story/dialog-left.png',
+      text: 'The school is still across the river. The clinic is still downstream. But this year, the river cannot take us there.'
+    },
+    {
+      speaker: 'CHILD', side: 'child', portrait: 'assets/story/child-surprised.png', box: 'assets/story/dialog-right.png',
+      text: 'Father says the rains are late because the ocean is warm again.'
+    },
+    {
+      speaker: 'GRANDMOTHER', side: 'grandmother', portrait: 'assets/story/grandmother-listening.png', box: 'assets/story/dialog-left.png',
+      text: 'When I was young, I had to raise my voice to speak here. Listen now....Only the machines upstream. Our grandparents told stories of the guardians every night. We stopped telling them, and the guardians began to fade.'
+    },
+    {
+      speaker: 'GRANDMOTHER', side: 'grandmother', portrait: 'assets/story/grandmother-looking.png', box: 'assets/story/dialog-left.png',
+      text: 'Follow the river upstream. Gather River Breath. Find the shrines. Help the guardians remember us, and we will remember them.'
+    },
+    {
+      speaker: 'CHILD', side: 'child', portrait: 'assets/story/child-surprised.png', box: 'assets/story/dialog-right.png',
+      text: "I'll go. Even where the river has gone dry."
+    }
   ];
 
   function updateSpiritUI() {
@@ -507,13 +894,84 @@
     ui.blessingSpiritCaption.textContent = spirit.name;
   }
 
+  function currentSpiritDialoguePage() {
+    const pages = state.spirit.dialogue[state.spiritDialoguePhase] || [];
+    return pages[state.spiritDialoguePage] || '';
+  }
+
+  function updateSpiritDialogueUI() {
+    const text = currentSpiritDialoguePage();
+    ui.spiritDialogueScreen.classList.toggle('line-complete', state.spiritDialogueLineComplete);
+    ui.spiritDialogueName.textContent = state.spirit.dialogueName;
+    ui.spiritDialoguePortrait.src = state.spirit.image;
+    ui.spiritDialoguePortrait.alt = state.spirit.dialogueName;
+    ui.spiritDialogueLine.textContent = state.spiritDialogueLineComplete
+      ? text
+      : text.slice(0, state.spiritDialogueRenderedChars);
+  }
+
+  function beginSpiritDialogue(phase, returnMode) {
+    if (!['weak', 'restored'].includes(phase) || state.altarInteractionCompleted && phase === 'weak') return;
+    if (phase === 'weak' && state.altarWeakDialogueShown) { setMode(returnMode); return; }
+    if (phase === 'restored' && state.altarRestoredDialogueShown) { setMode(returnMode); return; }
+    clearInput();
+    state.spiritDialoguePhase = phase;
+    state.spiritDialoguePage = 0;
+    state.spiritDialogueTimer = 0;
+    state.spiritDialogueRenderedChars = 0;
+    state.spiritDialogueLineComplete = false;
+    state.spiritDialogueReturnMode = returnMode;
+    if (phase === 'weak' && !state.altarSoundPlayed) {
+      state.altarSoundPlayed = true;
+      playAltarSound(state.spirit.id);
+    }
+    setMode('spiritDialogue');
+    updateSpiritDialogueUI();
+  }
+
+  function advanceSpiritDialogue() {
+    if (state.mode !== 'spiritDialogue') return;
+    const text = currentSpiritDialoguePage();
+    if (!state.spiritDialogueLineComplete) {
+      state.spiritDialogueLineComplete = true;
+      state.spiritDialogueRenderedChars = text.length;
+      updateSpiritDialogueUI();
+      return;
+    }
+    const pages = state.spirit.dialogue[state.spiritDialoguePhase] || [];
+    if (state.spiritDialoguePage + 1 < pages.length) {
+      state.spiritDialoguePage++;
+      state.spiritDialogueTimer = 0;
+      state.spiritDialogueRenderedChars = 0;
+      state.spiritDialogueLineComplete = false;
+      updateSpiritDialogueUI();
+      return;
+    }
+    if (state.spiritDialoguePhase === 'weak') state.altarWeakDialogueShown = true;
+    if (state.spiritDialoguePhase === 'restored') state.altarRestoredDialogueShown = true;
+    const returnMode = state.spiritDialogueReturnMode || 'altar';
+    state.spiritDialoguePhase = null;
+    state.spiritDialogueReturnMode = null;
+    clearInput();
+    if (returnMode === 'advance') advanceToNextStage();
+    else setMode(returnMode);
+    updateHUD();
+  }
+
+  function openAltarInteraction() {
+    if (state.altarInteractionCompleted) return;
+    state.player.x = WORLD.altarX;
+    state.player.vy = 0;
+    beginSpiritDialogue('weak', 'altar');
+  }
+
   function offeringInfo() {
     const total = collectibleDefs.filter(item => item.type === 'breath').length;
-    const low = Math.ceil(total * BLESSING_CONFIG.lowPriceRatio);
+    const prices = BLESSING_CONFIG.pricesByStage[activeStage.id] || BLESSING_CONFIG.pricesByStage[1];
     return {
       total,
-      low,
-      high: low + BLESSING_CONFIG.highPriceBonus
+      low: prices.low,
+      high: prices.high
     };
   }
 
@@ -530,7 +988,7 @@
     if (tier === 'high' && unlocked) return { available: false, price, reason: 'UNLOCKED THIS JOURNEY' };
     if (state.breath < price) return { available: false, price, reason: `NEEDS ${price} BREATH` };
     if (tier === 'high') {
-      const target = BLESSING_CONFIG.permanentUnlockCost[spiritId];
+      const target = offering.high;
       const projected = progression.offerings[spiritId] + price;
       if (projected < target) return { available: false, price, reason: `CUMULATIVE OFFERING ${progression.offerings[spiritId]}/${target}` };
     }
@@ -544,7 +1002,7 @@
   function updateAltarOptions() {
     const offering = offeringInfo();
     const spiritId = state.spirit.id;
-    const target = BLESSING_CONFIG.permanentUnlockCost[spiritId];
+    const target = offering.high;
     const progressLabel = progression.permanent[spiritId]
       ? `${BLESSING_CONFIG.spirits[spiritId].high.name} unlocked for this journey.`
       : `${state.spirit.name} offered: ${progression.offerings[spiritId]}/${target}.`;
@@ -561,7 +1019,7 @@
 
   function updateBlessingOptions() {
     const spiritId = state.spirit.id;
-    const target = BLESSING_CONFIG.permanentUnlockCost[spiritId];
+    const target = offeringInfo().high;
     ui.blessingProgress.textContent = `${state.breath} BREATH AVAILABLE · ${progression.offerings[spiritId]}/${target} OFFERED TO ${state.spirit.name}`;
     document.querySelectorAll('[data-tier]').forEach(button => {
       const tier = button.dataset.tier;
@@ -589,8 +1047,10 @@
 
   function setMode(mode) {
     state.mode = mode;
-    ['titleScreen','storyScreen','altarScreen','blessingScreen','pauseScreen','endScreen'].forEach(k => ui[k].classList.add('hidden'));
-    ui.hud.classList.toggle('hidden', ['title','story'].includes(mode));
+    document.getElementById('game-shell').dataset.mode = mode;
+    if (['cover', 'prologue', 'story', 'instructions', 'altar', 'spiritDialogue', 'dying', 'gameover', 'complete', 'title'].includes(mode)) fadeOutBgm();
+    ['coverScreen','backgroundStoryScreen','titleScreen','instructionScreen','storyScreen','altarScreen','spiritDialogueScreen','blessingScreen','pauseScreen','endScreen'].forEach(k => ui[k].classList.add('hidden'));
+    ui.hud.classList.toggle('hidden', ['cover','prologue','title','instructions','story'].includes(mode));
     const pauseAvailable = mode === 'running' || mode === 'paused';
     ui.pauseButton.classList.toggle('hidden', !pauseAvailable);
     ui.pauseButton.innerHTML = mode === 'paused'
@@ -598,9 +1058,19 @@
       : '<img src="assets/ui/07_PAUSE.png" alt="">';
     ui.pauseButton.setAttribute('aria-label', mode === 'paused' ? 'Resume game' : 'Pause game');
     ui.pauseButton.title = mode === 'paused' ? 'Resume (Esc)' : 'Pause (Esc)';
+    if (mode === 'cover') ui.coverScreen.classList.remove('hidden');
+    if (mode === 'prologue') ui.backgroundStoryScreen.classList.remove('hidden');
     if (mode === 'title') ui.titleScreen.classList.remove('hidden');
+    if (mode === 'instructions') ui.instructionScreen.classList.remove('hidden');
     if (mode === 'story') ui.storyScreen.classList.remove('hidden');
-    if (mode === 'altar') { updateSpiritUI(); updateAltarOptions(); ui.altarScreen.classList.remove('hidden'); }
+    if (mode === 'spiritDialogue') { updateSpiritUI(); updateSpiritDialogueUI(); ui.spiritDialogueScreen.classList.remove('hidden'); }
+    if (['cover', 'prologue', 'story', 'instructions'].includes(mode)) resumeIntroBgm();
+    else if (mode === 'running') { stopIntroBgm(); resumeBgm(); }
+    else fadeOutIntroBgm();
+    if (mode === 'altar') {
+      updateSpiritUI(); updateAltarOptions(); ui.altarScreen.classList.remove('hidden');
+      if (!state.altarSoundPlayed) { state.altarSoundPlayed = true; playAltarSound(state.spirit.id); }
+    }
     if (mode === 'blessing') { updateSpiritUI(); updateBlessingOptions(); ui.blessingScreen.classList.remove('hidden'); }
     if (mode === 'paused') ui.pauseScreen.classList.remove('hidden');
     if (mode === 'complete' || mode === 'gameover') showEnd(mode);
@@ -624,7 +1094,7 @@
     // in-memory blessings so their powers and HUD emblems cannot leak in from
     // a previous completion or a three-life game over. Explicit QA blessing
     // previews are isolated so the test screens remain usable.
-    if (stageNumber === 1 && !hasBlessingPreviewOverride()) {
+    if (stageNumber === 1 && !startImmediately && !hasBlessingPreviewOverride()) {
       resetJourneyProgression();
       carry = {};
     }
@@ -632,13 +1102,24 @@
     if (qaHp) state.player.hp = qaHp;
     syncStageUI();
     clearInput();
-    if (qaScreen === 'altar') { state.stageBreath = offeringInfo().total; state.breath = state.stageBreath; setMode('altar'); updateHUD(); return; }
-    if (qaScreen === 'blessing') { state.stageBreath = offeringInfo().total; state.breath = state.stageBreath; state.altarOffered = true; setMode('blessing'); updateHUD(); return; }
+    if (qaScreen === 'altar') {
+      state.stageBreath = offeringInfo().total; state.breath = state.stageBreath;
+      openAltarInteraction(); state.cameraX = Math.max(0, Math.min(WORLD.width - VIEW.width, WORLD.altarX - 360));
+      updateHUD(); return;
+    }
+    if (qaScreen === 'blessing') {
+      state.stageBreath = offeringInfo().total; state.breath = state.stageBreath; state.altarOffered = true;
+      state.player.x = WORLD.altarX; state.cameraX = Math.max(0, Math.min(WORLD.width - VIEW.width, WORLD.altarX - 360));
+      setMode('blessing'); updateHUD(); return;
+    }
+    if (qaScreen === 'instructions') { state.instructionsShown = true; setMode('instructions'); updateHUD(); return; }
     if (qaScreen === 'complete') { state.breath = 12; setMode('complete'); updateHUD(); return; }
     if (qaScreen === 'gameover') { state.breath = 4; setMode('gameover'); updateHUD(); return; }
     if (['frog', 'jaguar', 'macaw'].includes(qaBlessing)) applyLowBlessing(qaBlessing);
     if (qaAutoplay) {
       beginRun();
+    } else if (activeStage.id === 1 && !startImmediately) {
+      setMode('cover');
     } else {
       setMode('title');
     }
@@ -662,21 +1143,103 @@
     clearInput();
   }
 
-  function startStory() { state.storyIndex = 0; state.storyTimer = 0; setMode('story'); updateStoryUI(); }
+  function startStory() {
+    clearInput();
+    state.storyIndex = 0;
+    state.storyTimer = 0;
+    state.storyRenderedChars = 0;
+    state.storyLineComplete = false;
+    setMode('story');
+    updateStoryUI();
+  }
+  function updateBackgroundStoryUI() {
+    const entry = backgroundStory[backgroundStoryIndex];
+    ui.backgroundStoryImage.src = entry.image;
+    ui.backgroundStoryImage.alt = entry.alt;
+    ui.backgroundStoryProgress.textContent = `${String(backgroundStoryIndex + 1).padStart(2, '0')} / ${String(backgroundStory.length).padStart(2, '0')}`;
+    ui.backgroundStoryText.textContent = entry.text;
+    ui.backgroundStoryImage.style.animation = 'none';
+    void ui.backgroundStoryImage.offsetWidth;
+    ui.backgroundStoryImage.style.animation = '';
+  }
+  function startBackgroundStory() {
+    backgroundStoryShown = true;
+    backgroundStoryIndex = 0;
+    clearInput();
+    setMode('prologue');
+    updateBackgroundStoryUI();
+  }
+  function beginFromCover() {
+    if (backgroundStoryShown) startStory();
+    else startBackgroundStory();
+  }
+  function advanceBackgroundStory() {
+    if (state.mode !== 'prologue') return;
+    backgroundStoryIndex++;
+    if (backgroundStoryIndex >= backgroundStory.length) {
+      startStory();
+      return;
+    }
+    updateBackgroundStoryUI();
+  }
   function startPlayerJourney() {
     leaveQaPreviewMode();
+    if (activeStage.id === 1 && !state.instructionsShown) {
+      state.instructionsShown = true;
+      clearInput();
+      setMode('instructions');
+      updateHUD();
+      return;
+    }
+    beginPlayerRun();
+  }
+  function beginPlayerRun() {
+    stopIntroBgm();
+    startBgm();
     beginRun();
   }
+  function continueFromInstructions() {
+    if (state.mode !== 'instructions') return;
+    beginPlayerRun();
+  }
   function updateStoryUI() {
-    ui.storyLine.textContent = stories[state.storyIndex];
-    ui.storyProgressFill.style.width = `${((state.storyIndex) / stories.length) * 100}%`;
+    const entry = openingDialogue[state.storyIndex];
+    ui.storyScreen.classList.toggle('speaker-child', entry.side === 'child');
+    ui.storyScreen.classList.toggle('speaker-grandmother', entry.side === 'grandmother');
+    ui.storyScreen.classList.toggle('line-complete', state.storyLineComplete);
+    ui.dialogueSpeaker.textContent = entry.speaker;
+    ui.dialoguePortrait.src = entry.portrait;
+    ui.dialoguePortrait.alt = entry.speaker === 'CHILD' ? 'The young guardian' : 'Grandmother';
+    ui.dialogueBoxArt.src = entry.box;
+    ui.storyLine.textContent = state.storyLineComplete ? entry.text : entry.text.slice(0, state.storyRenderedChars);
+  }
+  function advanceStory() {
+    if (state.mode !== 'story') return;
+    const entry = openingDialogue[state.storyIndex];
+    if (!state.storyLineComplete) {
+      state.storyLineComplete = true;
+      state.storyRenderedChars = entry.text.length;
+      updateStoryUI();
+      return;
+    }
+    state.storyIndex++;
+    if (state.storyIndex >= openingDialogue.length) {
+      clearInput();
+      startPlayerJourney();
+      return;
+    }
+    state.storyTimer = 0;
+    state.storyRenderedChars = 0;
+    state.storyLineComplete = false;
+    updateStoryUI();
   }
   function beginRun() { state.player.x = 220; state.player.y = WORLD.groundY - state.player.h; setMode('running'); }
 
   function carryToNextStage() {
     return {
       hp: state.player.hp, breath: state.breath, totem: state.player.totem,
-      temp: { ...state.temp }, runBreathCollected: state.runBreathCollected, excludeSpiritId: state.spirit.id
+      temp: { ...state.temp }, runBreathCollected: state.runBreathCollected,
+      visitedSpiritIds: [...state.visitedSpiritIds]
     };
   }
 
@@ -723,6 +1286,8 @@
     const status = choiceStatus(tier);
     if (!status.available) return;
     state.offeringBusy = true;
+    state.altarInteractionCompleted = true;
+    state.altarOffered = true;
     const spiritId = state.spirit.id;
     const definition = blessingDefinition(tier);
     state.breath -= status.price;
@@ -730,9 +1295,13 @@
     if (tier === 'high') unlockPermanentBlessing(spiritId);
     else applyLowBlessing(spiritId);
     saveProgression();
-    state.message = `${definition.name} · ${definition.scope}`;
+    state.message = `ALTAR RESTORED · ${definition.name}`;
     state.messageTimer = 2;
-    advanceToNextStage();
+    state.restored = true;
+    state.restorationTimer = 2;
+    spawnBurst(WORLD.altarX + 80, WORLD.groundY - 105, '#43ddd5', 24);
+    updateHUD();
+    setMode('restoring');
   }
 
   function showEnd(mode) {
@@ -746,13 +1315,14 @@
     ui.endStats.classList.toggle('hidden', !finalStageComplete);
     ui.endStats.innerHTML = finalStageComplete ? '<strong>THE BROKEN RIVER FLOWS AGAIN</strong><span>Hope returns to the rainforest.</span>' : '';
     const restartButton = document.getElementById('restart-button');
-    restartButton.setAttribute('aria-label', finalStageComplete ? 'Return to village' : 'Restart journey from Stage 1');
-    restartButton.querySelector('span').textContent = finalStageComplete ? 'RETURN TO VILLAGE · R' : 'RESTART JOURNEY · R';
+    restartButton.setAttribute('aria-label', finalStageComplete ? 'Return to village' : `Retry Stage ${activeStage.id} from the beginning`);
+    restartButton.querySelector('span').textContent = finalStageComplete ? 'RETURN TO VILLAGE · R' : `RETRY STAGE ${activeStage.id} · R`;
     ui.endScreen.classList.remove('hidden');
   }
 
   function handleEndButton() {
-    retryCurrentStage();
+    if (state.mode === 'complete') restartJourney();
+    else retryCurrentStage();
   }
 
   function restartJourney() {
@@ -763,7 +1333,19 @@
     progression = loadProgression();
     resetGame(false, 1, {});
   }
-  function retryCurrentStage() { restartJourney(); }
+  function retryCurrentStage() {
+    leaveQaPreviewMode();
+    const stageNumber = activeStage.id;
+    const carry = {
+      ...state.stageEntryCarry,
+      hp: 3,
+      temp: { ...state.stageEntryCarry.temp },
+      visitedSpiritIds: [...state.stageEntryCarry.visitedSpiritIds]
+    };
+    resetGame(true, stageNumber, carry);
+    beginRun();
+    updateHUD();
+  }
 
   function clearInput() { input.jump = false; input.jumpPressed = false; input.crouch = false; input.autoJumpKind = null; }
   function setJump(down) {
@@ -779,18 +1361,39 @@
     // The supplied vine art has a short left strand and a longer right strand.
     // Only the lower right half reaches a standing player's head.
     if (obstacle.type === 'vine') return [{ x: obstacle.x + 78, y: obstacle.y, w: obstacle.w - 78, h: Math.max(1, obstacle.h - 8) }];
-    if (obstacle.type === 'log') return [{
-      x: obstacle.x - LOG_COLLISION_LEFT,
-      y: obstacle.y,
-      w: obstacle.w + LOG_COLLISION_LEFT + LOG_COLLISION_RIGHT,
-      h: obstacle.h
-    }];
+    if (obstacle.type === 'log') {
+      const fullX = obstacle.x - LOG_COLLISION_LEFT;
+      const fullWidth = obstacle.w + LOG_COLLISION_LEFT + LOG_COLLISION_RIGHT;
+      // The mossy left end is visual lead-in only. Start from the final two
+      // thirds, then add half a player-width of entry grace so merely brushing
+      // the root with the player's leading edge cannot cause damage.
+      const activeWidth = fullWidth * LOG_COLLISION_ACTIVE_RATIO;
+      const width = Math.max(1, activeWidth - LOG_COLLISION_ENTRY_GRACE);
+      const x = fullX + fullWidth - activeWidth + LOG_COLLISION_ENTRY_GRACE;
+      const bottom = obstacle.y + obstacle.h;
+      const step = width / 3;
+      const heights = [Math.max(42, obstacle.h - 18), obstacle.h + 8, obstacle.h + LOG_TILT_RISE];
+      return heights.map((height, index) => ({
+        x: x + step * index,
+        y: bottom - height,
+        w: index === heights.length - 1 ? width - step * index : step + 1,
+        h: height
+      }));
+    }
     return [obstacle];
   }
 
   function validateStageConfig(config) {
     const issues = [];
     const supported = x => config.platforms.some(platform => x >= platform.x && x <= platform.x + platform.w);
+    if (config.hasAltar) {
+      const widestAltar = Math.max(210, ...Object.values(preRestorationAltarArt).map(art => art.width || 210));
+      const altarCenter = config.world.altarX + 80;
+      const edgeInset = 20;
+      if (!supported(altarCenter - widestAltar / 2 - edgeInset) || !supported(altarCenter + widestAltar / 2 + edgeInset)) {
+        issues.push(`Altar at ${config.world.altarX} is not fully supported by its platform`);
+      }
+    }
     for (const obstacle of config.obstacles) {
       const collisionRects = obstacleCollisionRects(obstacle);
       if (collisionRects.some(rect => !supported(rect.x) || !supported(rect.x + rect.w))) issues.push(`Obstacle at ${obstacle.x} crosses a platform edge`);
@@ -834,6 +1437,7 @@
     const horizontalSpeed = p.grounded ? (activeStage.runSpeed || PHYSICS.speed) : PHYSICS.speed * PHYSICS.airSpeedMultiplier;
     p.x += horizontalSpeed * dt;
     p.invuln = Math.max(0, p.invuln - dt);
+    p.hurtFlash = Math.max(0, p.hurtFlash - dt);
     if (progression.permanent.frog && !p.renewableShieldReady && p.renewableShieldCooldown > 0) {
       p.renewableShieldCooldown = Math.max(0, p.renewableShieldCooldown - dt);
       if (p.renewableShieldCooldown === 0) {
@@ -907,13 +1511,26 @@
       spawnBurst(p.x, p.y + 25, '#f3c755', 14);
     } else {
       p.hp--;
+      playDamageSound();
       p.invuln = 1.05;
+      p.hurtFlash = .28;
       state.message = reason;
       state.messageTimer = 1.2;
       spawnBurst(p.x, p.y + 25, '#ff736d', 12);
     }
     updateHUD();
-    if (p.hp <= 0) setMode('gameover');
+    if (p.hp <= 0) {
+      clearInput();
+      p.dead = true;
+      p.crouching = false;
+      p.h = 76;
+      p.vy = 0;
+      p.grounded = true;
+      p.y = WORLD.groundY - p.h;
+      state.deathTimer = 1.25;
+      setMode('dying');
+      updateHUD();
+    }
     return true;
   }
 
@@ -977,16 +1594,14 @@
           state.rockfalls.push({
             x: targetX,
             y: -ROCKFALL_CONFIG.drawHeight - 24,
-            phase: 'warning',
-            warning: ROCKFALL_CONFIG.warningTime,
+            phase: 'falling',
             landed: 0,
             rotation: (Math.random() - .5) * .16,
             spin: (Math.random() - .5) * .8,
             hit: false
           });
           spawned = true;
-          state.message = 'ROCKFALL AHEAD · PREPARE TO JUMP';
-          state.messageTimer = 1.3;
+          playRockfallSound();
         }
       }
       state.rockfallTimer = spawned
@@ -996,11 +1611,6 @@
 
     const pr = playerRect();
     for (const rock of state.rockfalls) {
-      if (rock.phase === 'warning') {
-        rock.warning -= dt;
-        if (rock.warning <= 0) rock.phase = 'falling';
-        continue;
-      }
       const landingY = WORLD.groundY - ROCKFALL_CONFIG.drawHeight + 8;
       if (rock.phase === 'falling') {
         rock.y += ROCKFALL_CONFIG.fallSpeed * dt;
@@ -1033,6 +1643,7 @@
       state.breath++;
       state.stageBreath++;
       state.runBreathCollected++;
+      playRiverBreathSound();
       state.message = item.bonus ? 'BONUS RIVER BREATH' : '+1 RIVER BREATH';
       spawnBurst(item.x, item.y, '#43ddd5', 9);
       if (progression.permanent.macaw) {
@@ -1049,6 +1660,7 @@
     }
     if (item.type === 'heart') {
       state.player.hp = Math.min(state.player.maxHp, state.player.hp + 1);
+      playHeartHealSound();
       state.message = 'HEALING HEART · +1 LIFE';
       spawnBurst(item.x, item.y, '#ff4e45', 12);
     }
@@ -1096,12 +1708,43 @@
   function updateGame(dt) {
     state.time += dt;
     if (state.mode === 'story') {
-      state.storyTimer += dt;
-      ui.storyProgressFill.style.width = `${((state.storyIndex + Math.min(1, state.storyTimer / 2.25)) / stories.length) * 100}%`;
-      if (state.storyTimer >= 2.25) {
-        state.storyTimer = 0; state.storyIndex++;
-        if (state.storyIndex >= stories.length) beginRun(); else updateStoryUI();
+      if (!state.storyLineComplete) {
+        state.storyTimer += dt;
+        const entry = openingDialogue[state.storyIndex];
+        const nextCount = Math.min(entry.text.length, Math.floor(state.storyTimer * DIALOGUE_CHARACTERS_PER_SECOND));
+        if (nextCount !== state.storyRenderedChars) {
+          state.storyRenderedChars = nextCount;
+          if (nextCount >= entry.text.length) state.storyLineComplete = true;
+          updateStoryUI();
+        }
       }
+      return;
+    }
+    if (state.mode === 'spiritDialogue') {
+      if (!state.spiritDialogueLineComplete) {
+        state.spiritDialogueTimer += dt;
+        const text = currentSpiritDialoguePage();
+        const nextCount = Math.min(text.length, Math.floor(state.spiritDialogueTimer * DIALOGUE_CHARACTERS_PER_SECOND));
+        if (nextCount !== state.spiritDialogueRenderedChars) {
+          state.spiritDialogueRenderedChars = nextCount;
+          if (nextCount >= text.length) state.spiritDialogueLineComplete = true;
+          updateSpiritDialogueUI();
+        }
+      }
+      return;
+    }
+    if (state.mode === 'restoring') {
+      state.restorationTimer -= dt;
+      state.messageTimer = Math.max(0, state.messageTimer - dt);
+      updateParticles(dt);
+      if (state.restorationTimer <= 0) beginSpiritDialogue('restored', 'advance');
+      return;
+    }
+    if (state.mode === 'dying') {
+      state.deathTimer = Math.max(0, state.deathTimer - dt);
+      state.messageTimer = Math.max(0, state.messageTimer - dt);
+      updateParticles(dt);
+      if (state.deathTimer <= 0) setMode('gameover');
       return;
     }
     if (state.mode !== 'running') return;
@@ -1119,7 +1762,7 @@
     state.messageTimer = Math.max(0, state.messageTimer - dt);
 
     if (activeStage.hasAltar && !state.altarOffered && state.player.x >= WORLD.altarX) {
-      state.player.x = WORLD.altarX; state.player.vy = 0; setMode('altar');
+      openAltarInteraction();
     } else if ((!activeStage.hasAltar || state.altarOffered) && state.player.x >= WORLD.finishX) advanceToNextStage();
 
     const targetCamera = Math.max(0, Math.min(WORLD.width - VIEW.width, state.player.x - 360));
@@ -1184,6 +1827,7 @@
     shell.dataset.platformArt = platforms.map(platform => platform.art).join(',');
     shell.dataset.runTime = state.runTime.toFixed(1);
     shell.dataset.spirit = state.spirit.id;
+    shell.dataset.visitedSpirits = state.visitedSpiritIds.join(',');
     shell.dataset.temporaryFrogShield = String(state.temp.frogShield);
     shell.dataset.temporaryJaguarJumps = String(state.temp.jaguarJumps);
     shell.dataset.temporaryMacawSeconds = state.temp.macawMagnetTime.toFixed(1);
@@ -1252,6 +1896,10 @@
       drawNightBackground();
       return;
     }
+    if (activeStage.id === 3) {
+      drawStageThreeBackground();
+      return;
+    }
     const g = ctx.createLinearGradient(0, 0, 0, VIEW.height);
     g.addColorStop(0, '#123b35'); g.addColorStop(.62, '#0b2b26'); g.addColorStop(1, '#041512');
     ctx.fillStyle = g; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
@@ -1265,7 +1913,42 @@
     const shade = ctx.createLinearGradient(0, 0, 0, VIEW.height);
     shade.addColorStop(0, 'rgba(1, 12, 10, .1)'); shade.addColorStop(.6, 'rgba(1, 12, 10, .04)'); shade.addColorStop(1, 'rgba(1, 10, 8, .25)');
     ctx.fillStyle = shade; ctx.fillRect(0, 0, VIEW.width, VIEW.height);
-    if (activeStage.id === 3) drawBrokenRiverEnvironment();
+  }
+
+  function drawStageThreeBackground() {
+    const sky = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+    sky.addColorStop(0, '#51656b');
+    sky.addColorStop(.58, '#9d8662');
+    sky.addColorStop(1, '#503b2d');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+
+    drawStageThreeLayer('sky', 1.04, 8);
+    drawStageThreeLayer('mine', 1.055, 20);
+    drawStageThreeLayer('forest', 1.07, 32);
+    drawStageThreeLayer('river', 1.085, 44);
+    drawStageThreeLayer('riverbank', 1.1, 56);
+
+    const shade = ctx.createLinearGradient(0, 0, 0, VIEW.height);
+    shade.addColorStop(0, 'rgba(20, 22, 20, .04)');
+    shade.addColorStop(.62, 'rgba(40, 25, 15, .02)');
+    shade.addColorStop(1, 'rgba(18, 10, 7, .16)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+  }
+
+  function drawStageThreeLayer(key, scale, pan, alpha = 1) {
+    const image = stageThreeSceneryImages[key];
+    if (!image?.complete || !image.naturalWidth) return;
+    const progress = Math.max(0, Math.min(1, state.cameraX / Math.max(1, WORLD.finishX - VIEW.width)));
+    const width = VIEW.width * scale;
+    const height = VIEW.height * scale;
+    const x = (VIEW.width - width) / 2 - (progress - .5) * pan;
+    const y = (VIEW.height - height) / 2;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.drawImage(image, x, y, width, height);
+    ctx.restore();
   }
 
   function drawNightBackground() {
@@ -1428,9 +2111,7 @@
 
     drawAltar();
     drawCollectibles();
-    drawRockfallWarnings();
     drawForesightWarning();
-    drawFinish();
     drawPlayer();
     drawRockfalls();
     drawParticles();
@@ -1472,22 +2153,38 @@
   }
 
   function drawLogObstacle(obstacle, x) {
+    const art = groundHazardArt[obstacle.groundHazard];
+    const hazardImage = groundHazardImages[obstacle.groundHazard];
+    if (art && hazardImage?.complete && hazardImage.naturalWidth) {
+      const [sx, sy, sw, sh] = art.crop;
+      const drawX = x + obstacle.w / 2 - art.width / 2;
+      const drawY = WORLD.groundY - art.height + (art.groundSink ?? 3);
+      ctx.drawImage(hazardImage, sx, sy, sw, sh, drawX, drawY, art.width, art.height);
+      return;
+    }
     const useFullGameplayLog = activeStage.id === 2;
     const image = useFullGameplayLog ? supplementImages.fullLog : supplementImages.log;
-    const collisionRect = obstacleCollisionRects(obstacle)[0];
+    const collisionRects = obstacleCollisionRects(obstacle);
     const drawX = worldToScreen(obstacle.x - LOG_VISUAL_PADDING);
     const drawWidth = obstacle.w + LOG_VISUAL_PADDING * 2;
     if (image?.complete && image.naturalWidth) {
+      ctx.save();
+      // Anchor the lower-left edge in the platform and lift the far end. The
+      // taller collision box above mirrors the rotated silhouette.
+      ctx.translate(drawX, WORLD.groundY + 14);
+      ctx.rotate(LOG_TILT_RADIANS);
       if (useFullGameplayLog) {
         const crop = { x: 55, y: 255, w: 1580, h: 570 };
         const drawHeight = drawWidth * crop.h / crop.w;
-        ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, drawX, WORLD.groundY - drawHeight + 6, drawWidth, drawHeight);
+        ctx.drawImage(image, crop.x, crop.y, crop.w, crop.h, 0, -drawHeight, drawWidth, drawHeight);
       } else {
         const drawHeight = drawWidth * image.naturalHeight / image.naturalWidth;
-        ctx.drawImage(image, drawX, WORLD.groundY - drawHeight + 12, drawWidth, drawHeight);
+        ctx.drawImage(image, 0, -drawHeight, drawWidth, drawHeight);
       }
+      ctx.restore();
     } else {
-      ctx.fillStyle = '#a16f4c'; ctx.fillRect(drawX, collisionRect.y, collisionRect.w, collisionRect.h);
+      ctx.fillStyle = '#a16f4c';
+      collisionRects.forEach(rect => ctx.fillRect(worldToScreen(rect.x), rect.y, rect.w, rect.h));
     }
   }
 
@@ -1505,6 +2202,10 @@
   function drawForeground() {
     if (activeStage.id === 2) {
       drawNightForeground();
+      return;
+    }
+    if (activeStage.id === 3) {
+      drawStageThreeLayer('foreground', 1.12, 72);
       return;
     }
     drawSceneryLayer('canopy');
@@ -1552,56 +2253,30 @@
   function drawAltar() {
     if (!activeStage.hasAltar) return;
     const x = worldToScreen(WORLD.altarX + 80);
-    if (x < -240 || x > VIEW.width + 240) return;
-    const art = altarArt[state.spirit.id];
-    const image = altarImages[state.spirit.id];
-    const width = 210;
+    if (x < -320 || x > VIEW.width + 320) return;
+    const restored = state.restored;
+    const art = restored ? restoredAltarArt[state.spirit.id] : preRestorationAltarArt[state.spirit.id];
+    const image = restored ? restoredAltarImages[state.spirit.id] : preRestorationAltarImages[state.spirit.id];
+    const width = art.width || 210;
     const height = width * art.crop[3] / art.crop[2];
-    const dimmed = activeStage.id === 3 && !state.restored;
     if (image?.complete && image.naturalWidth) {
       ctx.save();
-      ctx.globalAlpha = dimmed ? .68 : 1;
-      if (dimmed) ctx.filter = 'saturate(.48) brightness(.7)';
-      ctx.shadowBlur = dimmed ? 8 : 18;
-      ctx.shadowColor = dimmed ? 'rgba(4,10,8,.7)' : 'rgba(67,221,213,.24)';
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = restored ? 18 : 10;
+      ctx.shadowColor = restored ? 'rgba(67,221,213,.24)' : 'rgba(31,18,6,.45)';
       // Sink the exact visible stone-base edge slightly into the platform
       // foliage so no transparent gap can make the altar appear to float.
-      ctx.drawImage(image, ...art.crop, x - width / 2, WORLD.groundY - height + 12, width, height);
+      const sink = restored ? ALTAR_GROUND_SINK.restored : ALTAR_GROUND_SINK.damaged;
+      ctx.drawImage(image, ...art.crop, x - width / 2, WORLD.groundY - height + sink, width, height);
       ctx.restore();
     } else {
-      ctx.fillStyle = dimmed ? '#3d3a2f' : '#614d28';
+      ctx.fillStyle = restored ? '#614d28' : '#3d3a2f';
       ctx.fillRect(x - 60, WORLD.groundY - 90, 120, 90);
-    }
-  }
-
-  function drawRockfallWarnings() {
-    for (const rock of state.rockfalls) {
-      if (rock.phase !== 'warning') continue;
-      const x = worldToScreen(rock.x);
-      if (x < -100 || x > VIEW.width + 100) continue;
-      const pulse = .65 + Math.sin(state.time * 15) * .2;
-      ctx.save();
-      ctx.globalAlpha = pulse;
-      ctx.strokeStyle = '#ffb238';
-      ctx.fillStyle = 'rgba(255, 94, 46, .18)';
-      ctx.lineWidth = 4;
-      ctx.fillRect(x - 34, 52, 68, WORLD.groundY - 55);
-      ctx.setLineDash([10, 7]);
-      ctx.beginPath();
-      ctx.ellipse(x, WORLD.groundY - 4, 47, 13, 0, 0, Math.PI * 2);
-      ctx.fill(); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#ffd77a';
-      ctx.font = '900 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('ROCKFALL · JUMP', x, WORLD.groundY - 31);
-      ctx.restore();
     }
   }
 
   function drawRockfalls() {
     for (const rock of state.rockfalls) {
-      if (rock.phase === 'warning') continue;
       const x = worldToScreen(rock.x);
       if (x < -120 || x > VIEW.width + 120) continue;
       ctx.save();
@@ -1621,15 +2296,28 @@
     }
   }
 
-  function drawFinish() {
-    const x = worldToScreen(WORLD.finishX); if (x < -100 || x > VIEW.width + 100) return;
-    ctx.fillStyle = '#43ddd5'; ctx.fillRect(x, WORLD.groundY - 175, 7, 175); ctx.fillRect(x - 35, WORLD.groundY - 175, 75, 7);
-    ctx.font = '800 13px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('RIVER GATE', x, WORLD.groundY - 192);
-  }
-
   function drawPlayer() {
     const p = state.player; const x = worldToScreen(p.x) - p.w / 2;
-    if (p.invuln > 0 && Math.floor(p.invuln * 14) % 2 === 0) return;
+    if (p.dead) {
+      const image = characterImages.death[0];
+      const drawWidth = 122;
+      const drawHeight = image?.naturalWidth ? drawWidth * image.naturalHeight / image.naturalWidth : 108;
+      ctx.save();
+      ctx.globalAlpha = .3;
+      ctx.fillStyle = '#180706';
+      ctx.beginPath();
+      ctx.ellipse(worldToScreen(p.x), WORLD.groundY + 4, drawWidth * .43, 7, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      if (image?.complete && image.naturalWidth) {
+        ctx.drawImage(image, worldToScreen(p.x) - drawWidth / 2, WORLD.groundY - drawHeight + 7, drawWidth, drawHeight);
+      } else {
+        ctx.fillStyle = '#b9483f';
+        ctx.fillRect(worldToScreen(p.x) - 45, WORLD.groundY - 24, 90, 24);
+      }
+      return;
+    }
+    if (p.invuln > 0 && p.hurtFlash <= 0 && Math.floor(p.invuln * 14) % 2 === 0) return;
     let animation = 'run';
     let frame = 0;
     if (p.crouching) animation = 'slide';
@@ -1645,9 +2333,10 @@
 
     const image = characterImages[animation][frame];
     if (image?.complete && image.naturalWidth) {
-      const scale = .075;
+      const scale = animation === 'run' ? .145 : .075;
       const drawW = image.naturalWidth * scale;
       const drawH = image.naturalHeight * scale;
+      const pivotY = animation === 'run' ? image.naturalHeight * .892578125 : image.naturalHeight;
       const runBob = animation === 'run' ? Math.sin(state.time * 15) * 2 : 0;
       const footY = p.y + p.h + 3 + runBob;
 
@@ -1668,14 +2357,19 @@
         ctx.shadowBlur = 15;
         ctx.shadowColor = 'rgba(67,221,213,.7)';
       }
-      ctx.drawImage(image, -drawW * .5, -drawH, drawW, drawH);
+      if (p.hurtFlash > 0) {
+        ctx.filter = 'sepia(1) saturate(11) hue-rotate(315deg) brightness(1.2)';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = 'rgba(255, 43, 43, .9)';
+      }
+      ctx.drawImage(image, -drawW * .5, -pivotY * scale, drawW, drawH);
       ctx.restore();
 
       return;
     }
 
     // Loading fallback keeps the game playable if a frame has not decoded yet.
-    ctx.fillStyle = '#eef9ee'; ctx.fillRect(x, p.y, p.w, p.h);
+    ctx.fillStyle = p.hurtFlash > 0 ? '#ff443d' : '#eef9ee'; ctx.fillRect(x, p.y, p.w, p.h);
     ctx.fillStyle = '#43ddd5'; ctx.fillRect(x + 7, p.y + 10, p.w - 14, 12);
   }
 
@@ -1713,7 +2407,7 @@
   }
 
   function drawMessages() {
-    if (state.messageTimer <= 0 || state.mode !== 'running') return;
+    if (state.messageTimer <= 0 || !['running', 'restoring'].includes(state.mode)) return;
     const alpha = Math.min(1, state.messageTimer * 2);
     ctx.globalAlpha = alpha; ctx.font = '800 17px sans-serif'; ctx.textAlign = 'center';
     const width = Math.min(700, ctx.measureText(state.message).width + 54);
@@ -1744,26 +2438,39 @@
   let lastTime = performance.now();
   function frame(now) {
     const dt = Math.min(.033, Math.max(0, (now - lastTime) / 1000)); lastTime = now;
+    updateAudio(dt);
     for (let step = 0; step < qaSimulationSteps; step++) updateGame(dt);
     draw(); requestAnimationFrame(frame);
   }
 
+  ui.coverScreen.addEventListener('click', beginFromCover);
+  ui.backgroundStoryScreen.addEventListener('click', advanceBackgroundStory);
   document.getElementById('start-button').addEventListener('click', startPlayerJourney);
-  document.getElementById('skip-story').addEventListener('click', beginRun);
+  ui.instructionScreen.addEventListener('click', continueFromInstructions);
+  ui.storyScreen.addEventListener('click', advanceStory);
+  ui.spiritDialogueScreen.addEventListener('click', advanceSpiritDialogue);
   ui.offerButton.addEventListener('click', offerAtAltar);
   document.querySelectorAll('[data-tier]').forEach(btn => btn.addEventListener('click', () => chooseBlessing(btn.dataset.tier)));
   document.getElementById('restart-button').addEventListener('click', handleEndButton);
   ui.pauseButton.addEventListener('click', togglePause);
+  ui.musicButton.addEventListener('click', toggleMusic);
+  document.querySelectorAll('button:not(.touch-button)').forEach(button => button.addEventListener('click', playUiClick));
+  window.addEventListener('pointerdown', unlockGameAudio, { once: true, capture: true });
+  window.addEventListener('keydown', unlockGameAudio, { once: true, capture: true });
 
   window.addEventListener('keydown', e => {
     const gameKey = ['Space','ArrowUp','ArrowDown','ControlLeft','ControlRight','Escape','KeyR','KeyB','Digit1','Digit2','Enter'].includes(e.code);
     if (gameKey) e.preventDefault();
+    if (state.mode === 'cover' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { beginFromCover(); return; }
+    if (state.mode === 'prologue' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { advanceBackgroundStory(); return; }
     if (state.mode === 'title' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { startPlayerJourney(); return; }
-    if (state.mode === 'story' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { beginRun(); return; }
+    if (state.mode === 'instructions' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { continueFromInstructions(); return; }
+    if (state.mode === 'story' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { advanceStory(); return; }
+    if (state.mode === 'spiritDialogue' && (e.code === 'Enter' || e.code === 'Space') && !e.repeat) { advanceSpiritDialogue(); return; }
     if ((e.code === 'Space' || e.code === 'ArrowUp') && !e.repeat) setJump(true);
     if (e.code === 'ArrowDown' || e.code === 'ControlLeft' || e.code === 'ControlRight') setCrouch(true);
     if (e.code === 'Escape' && !e.repeat) togglePause();
-    if (e.code === 'KeyR' && ['gameover','complete'].includes(state.mode)) retryCurrentStage();
+    if (e.code === 'KeyR' && ['gameover','complete'].includes(state.mode)) handleEndButton();
     if (e.code === 'KeyB' && !e.repeat) state.debugColliders = !state.debugColliders;
     if (state.mode === 'altar' && (e.code === 'Enter' || e.code === 'Space')) offerAtAltar();
     if (state.mode === 'blessing' && e.code === 'Digit1') chooseBlessing('low');
@@ -1789,6 +2496,7 @@
     getState: () => ({
       stage: activeStage.id, mode: state.mode, x: Math.round(state.player.x), hp: state.player.hp,
       breath: state.breath, stageBreath: state.stageBreath, totem: state.player.totem, spirit: state.spirit.id,
+      visitedSpirits: [...state.visitedSpiritIds],
       temporary: { ...state.temp }, permanent: { ...progression.permanent }, offerings: { ...progression.offerings },
       renewableShieldReady: state.player.renewableShieldReady, renewableShieldCooldown: state.player.renewableShieldCooldown,
       macawHealProgress: progression.macawHealProgress, crouching: state.player.crouching,
@@ -1803,6 +2511,7 @@
     toggleDebugColliders: () => { state.debugColliders = !state.debugColliders; return state.debugColliders; }
   };
 
+  updateMusicButton();
   activateStage(qaStage);
   resetGame(false, qaStage); resizeCanvas(); requestAnimationFrame(frame);
 })();

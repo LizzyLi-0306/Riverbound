@@ -39,10 +39,14 @@ canvas { width: 100%; height: 100%; display: block; }
 .spirit-hud-icon.permanent { border-color: rgba(243,199,85,.95); box-shadow: 0 0 20px rgba(243,199,85,.55), inset 0 0 12px rgba(243,199,85,.18); }
 .hud-resources { justify-self: end; display: flex; gap: 8px; }
 .blessing-status { color: var(--aqua); font-size: 10px; letter-spacing: .08em; white-space: nowrap; }
-.pause-button { position: relative; z-index: 6; width: 38px; min-height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(67, 221, 213, .55); border-radius: 6px; background: rgba(5, 18, 15, .82); color: var(--aqua); font-size: 17px; font-weight: 900; line-height: 1; cursor: pointer; pointer-events: auto; backdrop-filter: blur(6px); box-shadow: 0 0 16px rgba(67, 221, 213, .08); }
+.pause-button, .music-button { position: relative; z-index: 6; min-height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(67, 221, 213, .55); border-radius: 6px; background: rgba(5, 18, 15, .82); color: var(--aqua); font-size: 17px; font-weight: 900; line-height: 1; cursor: pointer; pointer-events: auto; backdrop-filter: blur(6px); box-shadow: 0 0 16px rgba(67, 221, 213, .08); }
+.pause-button { width: 38px; }
+.music-button { min-width: 76px; grid-template-columns: 18px auto; gap: 3px; padding: 0 8px; }
+.music-button small { font-size: 8px; letter-spacing: .08em; white-space: nowrap; }
+.music-button[aria-pressed="false"] { color: var(--muted); border-color: rgba(184, 233, 207, .24); }
 .pause-button img { width: 25px; height: 25px; object-fit: contain; }
-.pause-button:hover, .pause-button:focus-visible { border-color: var(--aqua); background: rgba(18, 60, 51, .94); color: white; outline: 2px solid rgba(255,255,255,.8); outline-offset: 2px; }
-.pause-button:active { transform: scale(.95); }
+.pause-button:hover, .pause-button:focus-visible, .music-button:hover, .music-button:focus-visible { border-color: var(--aqua); background: rgba(18, 60, 51, .94); color: white; outline: 2px solid rgba(255,255,255,.8); outline-offset: 2px; }
+.pause-button:active, .music-button:active { transform: scale(.95); }
 .hud-label { color: var(--muted); font-size: 10px; letter-spacing: .13em; }
 .life-pips { display: flex; align-items: center; gap: 2px; }
 .life-pips img { width: 25px; height: 25px; object-fit: contain; filter: drop-shadow(0 2px 5px rgba(0,0,0,.55)); }
@@ -57,12 +61,32 @@ canvas { width: 100%; height: 100%; display: block; }
 .progress-track i { display: block; width: 0; height: 100%; background: var(--aqua); transition: width .15s linear; }
 
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; padding: 24px; background: rgba(2, 12, 10, .58); backdrop-filter: blur(5px); z-index: 5; }
+.cover-screen { position: fixed; z-index: 20; inset: 0; width: 100vw; height: 100dvh; margin: 0; padding: 0; overflow: hidden; border: 0; background: #06120f; color: white; cursor: pointer; }
+.cover-art { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; }
+.cover-prompt { position: absolute; left: 50%; bottom: clamp(24px, 5vh, 56px); transform: translateX(-50%); padding: 11px 20px; border: 1px solid rgba(255,255,255,.72); border-radius: 999px; background: rgba(3,21,24,.58); box-shadow: 0 8px 30px rgba(0,0,0,.38); color: #fff8dc; font-size: clamp(10px, 1vw, 14px); font-weight: 900; letter-spacing: .2em; text-shadow: 0 2px 8px #000; backdrop-filter: blur(5px); animation: cover-prompt-pulse 1.5s ease-in-out infinite alternate; white-space: nowrap; }
+.cover-screen:hover .cover-prompt, .cover-screen:focus-visible .cover-prompt { background: rgba(8,65,69,.78); border-color: #fff8dc; }
+.cover-screen:focus-visible { outline: 3px solid #fff8dc; outline-offset: -3px; }
+@keyframes cover-prompt-pulse { to { transform: translateX(-50%) translateY(-4px); box-shadow: 0 10px 36px rgba(42,217,214,.32); } }
+.background-story-screen { position: fixed; z-index: 19; inset: 0; overflow: hidden; background: #040d0b; cursor: pointer; }
+.background-story-image { width: 100%; height: 100%; display: block; object-fit: cover; object-position: center; animation: background-story-arrive .7s ease-out both; }
+.background-story-caption { position: absolute; inset: auto 0 0; min-height: 31%; display: grid; align-content: end; gap: 10px; padding: clamp(72px, 10vh, 120px) clamp(24px, 8vw, 150px) clamp(24px, 5vh, 54px); background: linear-gradient(transparent, rgba(2,10,10,.72) 24%, rgba(2,10,10,.94)); text-align: center; text-shadow: 0 2px 9px #000; }
+.background-story-progress { color: #72eee7; font-size: clamp(9px, .8vw, 12px); font-weight: 900; letter-spacing: .22em; }
+.background-story-text { width: min(1120px, 90vw); margin: 0 auto; color: #fff9e8; font: 600 clamp(16px, 1.55vw, 25px)/1.48 Georgia, serif; }
+.background-story-prompt { margin: 4px 0 0; color: #b9d9d2; font-size: clamp(8px, .8vw, 11px); font-weight: 900; letter-spacing: .13em; }
+.background-story-prompt span { display: inline-block; margin-left: 5px; animation: dialogue-bob .8s ease-in-out infinite alternate; }
+@keyframes background-story-arrive { from { opacity: .25; transform: scale(1.015); } to { opacity: 1; transform: scale(1); } }
 .title-screen { padding: 14px; background: rgba(2, 12, 10, .82); backdrop-filter: none; }
 .stage-start-card { position: relative; width: min(1100px, 96vw, 144vh); aspect-ratio: 3 / 2; }
 .stage-start-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 24px 70px rgba(0,0,0,.58)); }
 .stage-start-button { position: absolute; z-index: 1; left: 50%; top: 69%; width: 29%; height: 16%; transform: translateX(-50%); border: 0; border-radius: 7px; background: transparent; color: transparent; cursor: pointer; }
 .stage-start-button span { font-size: 0; }
 .stage-start-button:hover, .stage-start-button:focus-visible { background: transparent; outline: 0; }
+.instruction-screen { grid-template-rows: minmax(0, 1fr) auto; gap: 4px; width: 100%; height: 100%; margin: 0; padding: 10px 12px 8px; border: 0; background: rgba(2, 12, 10, .9); color: var(--ink); cursor: pointer; backdrop-filter: blur(4px); }
+.instruction-art { min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 22px 56px rgba(0,0,0,.62)); }
+.instruction-prompt { color: #b9d9d2; font-size: clamp(8px, .8vw, 11px); font-weight: 900; letter-spacing: .14em; text-shadow: 0 2px 8px #000; }
+.instruction-prompt > span { display: inline-block; margin-left: 5px; animation: dialogue-bob .8s ease-in-out infinite alternate; }
+.instruction-screen:hover .instruction-prompt, .instruction-screen:focus-visible .instruction-prompt { color: #fff8dc; }
+.instruction-screen:focus-visible { outline: 2px solid var(--aqua); outline-offset: -3px; }
 .eyebrow { margin: 0 0 13px; color: var(--aqua); letter-spacing: .22em; font-weight: 800; font-size: 12px; }
 h1 { margin: 0; font-size: clamp(54px, 9vw, 126px); line-height: .86; letter-spacing: -.065em; }
 .subtitle { margin: 19px 0 30px; font: 300 clamp(20px, 3vw, 34px) Georgia, serif; font-style: italic; color: #c3d6cd; }
@@ -71,14 +95,28 @@ kbd { padding: 4px 7px; border: 1px solid #6f8980; border-bottom-width: 2px; bor
 .primary-button { min-width: 190px; border: 0; border-radius: 4px; padding: 14px 22px; background: var(--aqua); color: #05211d; font-weight: 900; letter-spacing: .12em; cursor: pointer; box-shadow: 0 8px 30px rgba(67,221,213,.18); }
 .primary-button:hover, .primary-button:focus-visible { background: #84fff6; outline: 2px solid white; outline-offset: 3px; }
 
-.story-screen { background: rgba(3, 15, 13, .82); overflow: hidden; }
-.story-art-wrap { position: absolute; inset: 50% auto auto 50%; width: min(1080px, 96vw, 144vh); aspect-ratio: 3 / 2; transform: translate(-50%, -50%); }
-.story-art { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 24px 60px rgba(0,0,0,.5)); }
-.story-card { position: absolute; z-index: 1; left: 50%; bottom: 5%; width: min(760px, 78vw); transform: translateX(-50%); padding: 13px 18px; border: 1px solid rgba(67,221,213,.35); border-radius: 7px; background: rgba(4, 20, 17, .9); box-shadow: 0 12px 32px rgba(0,0,0,.4); }
-.story-card .eyebrow { display: none; }
-.story-line { min-height: 1.5em; margin: 0 0 10px; text-align: center; font: 400 clamp(15px, 2vw, 21px)/1.35 Georgia, serif; }
-.story-progress { width: min(380px, 80%); height: 2px; background: rgba(255,255,255,.16); }
-.story-progress i { display: block; width: 0; height: 100%; background: var(--aqua); transition: width .18s linear; }
+.story-screen { display: block; padding: 0; overflow: hidden; background: rgba(2, 10, 8, .64); backdrop-filter: blur(2px); cursor: pointer; }
+.dialogue-portrait { position: absolute; z-index: 1; bottom: 8%; width: min(38vw, 480px); max-height: 84%; object-fit: contain; object-position: bottom center; filter: drop-shadow(0 18px 42px rgba(0,0,0,.7)); pointer-events: none; }
+.story-screen.speaker-child .dialogue-portrait { right: 2%; }
+.story-screen.speaker-grandmother .dialogue-portrait { left: 2%; }
+.dialogue-box { position: absolute; z-index: 3; left: 50%; bottom: 3%; width: min(900px, 72vw); aspect-ratio: 2 / 1; transform: translateX(-50%); pointer-events: none; filter: drop-shadow(0 18px 36px rgba(0,0,0,.58)); }
+.dialogue-box-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.dialogue-copy { position: absolute; inset: 24% 14% 19% 17%; display: flex; flex-direction: column; justify-content: center; color: #321b15; text-shadow: none; }
+.dialogue-speaker { margin: 0 0 8px; color: #a62120; font-size: clamp(16px, 1.7vw, 22px); font-weight: 900; letter-spacing: .15em; }
+.story-line { min-height: 5.4em; margin: 0; font: 700 clamp(14px, 1.65vw, 20px)/1.36 Georgia, serif; }
+.dialogue-prompt { align-self: flex-end; margin: 7px 0 0; color: #7b4d3c; font-size: clamp(8px, .9vw, 11px); font-weight: 900; letter-spacing: .11em; opacity: .56; }
+.story-screen.line-complete .dialogue-prompt { color: #a62120; opacity: 1; }
+.dialogue-prompt span { display: inline-block; margin-left: 5px; animation: dialogue-bob .8s ease-in-out infinite alternate; }
+@keyframes dialogue-bob { to { transform: translateY(3px); } }
+.spirit-dialogue-screen { padding: 12px; background: rgba(2, 10, 8, .76); backdrop-filter: blur(3px); cursor: pointer; }
+.spirit-dialogue-panel { position: relative; width: min(1040px, 94vw); aspect-ratio: 1664 / 936; filter: drop-shadow(0 24px 54px rgba(0,0,0,.65)); }
+.spirit-dialogue-panel-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.spirit-dialogue-portrait { position: absolute; z-index: 1; left: 4.7%; top: 13%; width: 24.5%; height: 43%; object-fit: contain; object-position: center; filter: drop-shadow(0 8px 14px rgba(0,0,0,.45)); pointer-events: none; }
+.spirit-dialogue-name { position: absolute; z-index: 2; left: 32%; top: 33.5%; width: 49%; margin: 0; color: #382116; font-size: clamp(18px, 2.2vw, 31px); font-weight: 950; letter-spacing: .08em; text-align: center; text-transform: uppercase; }
+.spirit-dialogue-line { position: absolute; z-index: 2; left: 31%; top: 49%; width: 55%; min-height: 24%; margin: 0; color: #f2f5df; font: 700 clamp(16px, 1.9vw, 25px)/1.38 Georgia, serif; text-shadow: 0 2px 3px rgba(0,0,0,.5); }
+.spirit-dialogue-prompt { position: absolute; z-index: 2; right: 14%; bottom: 14%; margin: 0; color: #b8e9cf; font-size: clamp(8px, .85vw, 11px); font-weight: 900; letter-spacing: .12em; opacity: .58; }
+.spirit-dialogue-screen.line-complete .spirit-dialogue-prompt { color: #fff2b8; opacity: 1; }
+.spirit-dialogue-prompt span { display: inline-block; margin-left: 5px; animation: dialogue-bob .8s ease-in-out infinite alternate; }
 .text-button { position: absolute; z-index: 2; left: 50%; top: 67%; width: 31%; height: 14%; margin: 0; padding: 0; transform: translateX(-50%); border: 0; background: transparent; color: transparent; font-size: 0; cursor: pointer; }
 .text-button:focus-visible { outline: 2px solid var(--aqua); outline-offset: 2px; border-radius: 5px; }
 
@@ -139,6 +177,8 @@ kbd { padding: 4px 7px; border: 1px solid #6f8980; border-bottom-width: 2px; bor
 .touch-button.pressed { transform: scale(.96); background: rgba(67,221,213,.3); }
 
 @media (max-width: 700px), (pointer: coarse) {
+  .background-story-caption { min-height: 39%; padding: 64px 18px 22px; }
+  .background-story-text { width: min(94vw, 760px); font-size: clamp(13px, 3.2vw, 17px); line-height: 1.4; }
   #game-shell { grid-template-rows: 36px minmax(0, 1fr); }
   .game-header { padding: 0 12px; font-size: 10px; }
   .stage-label, .game-footer { display: none; }
@@ -154,6 +194,8 @@ kbd { padding: 4px 7px; border: 1px solid #6f8980; border-bottom-width: 2px; bor
   .hud-label { display: none; }
   .hud-resources { gap: 4px; }
   .pause-button { width: 32px; min-height: 28px; font-size: 15px; }
+  .music-button { min-width: 32px; min-height: 28px; grid-template-columns: 1fr; padding: 0; }
+  .music-button small { display: none; }
   .pause-button img { width: 21px; height: 21px; }
   .progress-wrap { grid-column: 1 / -1; grid-row: 2; width: 100%; flex-direction: row-reverse; justify-content: center; }
   .touch-controls { display: flex; }
@@ -173,7 +215,18 @@ kbd { padding: 4px 7px; border: 1px solid #6f8980; border-bottom-width: 2px; bor
   .blessing-grid { grid-template-columns: 1fr; gap: 10px; }
   .blessing-card { min-height: 130px; padding: 18px; }
   .blessing-art { width: 48px; height: 48px; }
-  .story-card { bottom: 4%; width: 90vw; }
+  .dialogue-portrait { bottom: 20%; width: min(50vw, 330px); max-height: 72%; }
+  .story-screen.speaker-child .dialogue-portrait { right: -4%; }
+  .story-screen.speaker-grandmother .dialogue-portrait { left: -4%; }
+  .dialogue-box { bottom: 4%; width: 94vw; }
+  .dialogue-copy { inset: 22% 13% 17% 16%; }
+  .story-line { min-height: 5.6em; font-size: clamp(12px, 3.2vw, 16px); }
+  .dialogue-speaker { margin-bottom: 4px; font-size: clamp(12px, 3.4vw, 16px); }
+  .dialogue-prompt { margin-top: 3px; font-size: 7px; }
+  .spirit-dialogue-panel { width: min(98vw, 850px); }
+  .spirit-dialogue-name { font-size: clamp(13px, 3.4vw, 22px); }
+  .spirit-dialogue-line { font-size: clamp(11px, 2.7vw, 17px); }
+  .spirit-dialogue-prompt { font-size: 7px; }
     .end-card .end-stats { top: 57%; width: 72%; font-size: 9px; }
     .restart-button { top: 69%; width: 35%; height: 15%; }
     .end-screen[data-outcome="gameover"] .restart-button { top: 66.5%; width: 31%; height: 16.5%; }

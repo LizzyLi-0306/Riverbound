@@ -4,3 +4,6 @@ Desktop.ini
 .idea/
 .vscode/
 *.log
+
+# Local distributable archives (GitHub has a 100 MB per-file limit)
+Riverbound-*.zip

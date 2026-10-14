@@ -19,6 +19,20 @@
     <section id="viewport" class="viewport">
       <canvas id="game-canvas" width="1280" height="720" aria-label="Riverbound game view"></canvas>
 
+      <button id="cover-screen" class="cover-screen hidden" type="button" aria-label="Begin Riverbound">
+        <img class="cover-art" src="assets/ui/RIVERBOUND_COVER.png" alt="Riverbound — a living rainforest facing a devastated landscape">
+        <span class="cover-prompt">CLICK ANYWHERE TO BEGIN</span>
+      </button>
+
+      <div id="background-story-screen" class="background-story-screen hidden" role="dialog" aria-modal="true" aria-label="The story of the river">
+        <img id="background-story-image" class="background-story-image" src="" alt="">
+        <div class="background-story-caption">
+          <span id="background-story-progress" class="background-story-progress">01 / 06</span>
+          <p id="background-story-text" class="background-story-text"></p>
+          <p class="background-story-prompt">SPACE / ENTER / CLICK <span aria-hidden="true">▼</span></p>
+        </div>
+      </div>
+
       <div id="hud" class="hud hidden" aria-live="polite">
         <div class="hud-left-stack">
           <div class="hud-group hud-life">
@@ -42,6 +56,7 @@
           <div class="hud-group"><img id="shield-icon" class="ui-icon shield-icon inactive" src="assets/ui/04_SHIELD.png" alt=""><span id="totem-value">EMPTY</span></div>
           <div id="jump-status" class="hud-group blessing-status hidden">JUMP 0</div>
           <div id="magnet-status" class="hud-group blessing-status hidden">MAGNET 0s</div>
+          <button id="music-button" class="music-button" type="button" aria-label="Turn music off" aria-pressed="true" title="Music on"><span aria-hidden="true">♪</span><small>MUSIC ON</small></button>
           <button id="pause-button" class="pause-button hidden" type="button" aria-label="Pause game" title="Pause (Esc)"><img src="assets/ui/07_PAUSE.png" alt=""></button>
         </div>
       </div>
@@ -53,15 +68,20 @@
         </div>
       </div>
 
-      <div id="story-screen" class="overlay story-screen hidden">
-        <div class="story-art-wrap">
-          <img class="story-art" src="assets/ui/STAGE_01.png" alt="" aria-hidden="true">
-          <button id="skip-story" class="text-button" aria-label="Skip story">SKIP <span>→</span></button>
-        </div>
-        <div class="story-card">
-          <p id="story-kicker" class="eyebrow">THE QUIET RIVER</p>
-          <p id="story-line" class="story-line"></p>
-          <div class="story-progress"><i id="story-progress-fill"></i></div>
+      <button id="instruction-screen" class="overlay instruction-screen hidden" type="button" aria-label="How to play. Click or press Space or Enter to begin Stage 1">
+        <img class="instruction-art" src="assets/ui/RIVERBOUND_HOW_TO_PLAY_POPUP.png" alt="How to play: press Space to jump; press Control or Down to crouch; collect River Breath for altars and hearts for life; jump over roots and logs">
+        <span class="instruction-prompt">SPACE / ENTER / CLICK TO BEGIN <span aria-hidden="true">▼</span></span>
+      </button>
+
+      <div id="story-screen" class="overlay story-screen hidden" role="dialog" aria-modal="true" aria-label="Opening dialogue">
+        <img id="dialogue-portrait" class="dialogue-portrait" src="" alt="">
+        <div class="dialogue-box">
+          <img id="dialogue-box-art" class="dialogue-box-art" src="assets/story/dialog-left.png" alt="" aria-hidden="true">
+          <div class="dialogue-copy">
+            <p id="dialogue-speaker" class="dialogue-speaker">GRANDMOTHER</p>
+            <p id="story-line" class="story-line" aria-live="polite"></p>
+            <p id="dialogue-prompt" class="dialogue-prompt">SPACE / ENTER / CLICK <span aria-hidden="true">▼</span></p>
+          </div>
         </div>
       </div>
 
@@ -79,6 +99,16 @@
             <img id="altar-spirit-image" class="spirit-portrait" src="" alt="">
             <p id="altar-spirit-caption" class="spirit-caption"></p>
           </aside>
+        </div>
+      </div>
+
+      <div id="spirit-dialogue-screen" class="overlay spirit-dialogue-screen hidden" role="dialog" aria-modal="true" aria-label="Animal god dialogue">
+        <div class="spirit-dialogue-panel">
+          <img class="spirit-dialogue-panel-art" src="assets/ui/ANIMAL_GOD_DIALOGUE_PANEL.png" alt="" aria-hidden="true">
+          <img id="spirit-dialogue-portrait" class="spirit-dialogue-portrait" src="" alt="">
+          <p id="spirit-dialogue-name" class="spirit-dialogue-name"></p>
+          <p id="spirit-dialogue-line" class="spirit-dialogue-line" aria-live="polite"></p>
+          <p id="spirit-dialogue-prompt" class="spirit-dialogue-prompt">SPACE / ENTER / CLICK <span aria-hidden="true">▼</span></p>
         </div>
       </div>
 
@@ -126,6 +156,17 @@
 
     <footer class="game-footer"><span>AUTO-RUN ACTIVE</span><span>SPACE / ↑ JUMP · ↓ / CTRL CROUCH · ESC PAUSE</span></footer>
   </main>
+  <audio id="intro-bgm-audio" src="assets/audio/riverbound-intro-bgm.mp3" preload="auto" loop></audio>
+  <audio id="bgm-audio" src="assets/audio/cinematic-nature-stage-bgm.mp3" preload="auto" loop></audio>
+  <audio id="heartbeat-audio" src="assets/audio/low-health-heartbeat.mp3" preload="auto" loop></audio>
+  <audio id="ui-click-audio" src="assets/audio/ui-click.mp3" preload="auto"></audio>
+  <audio id="altar-frog-audio" src="assets/audio/altar-frog.mp3" preload="auto"></audio>
+  <audio id="altar-macaw-audio" src="assets/audio/altar-macaw.mp3" preload="auto"></audio>
+  <audio id="altar-jaguar-audio" src="assets/audio/altar-jaguar.mp3" preload="auto"></audio>
+  <audio id="rockfall-audio" src="assets/audio/rockfall.mp3" preload="auto"></audio>
+  <audio id="damage-audio" src="assets/audio/damage.mp3" preload="auto"></audio>
+  <audio id="river-breath-audio" src="assets/audio/river-breath-collect.mp3" preload="auto"></audio>
+  <audio id="heart-heal-audio" src="assets/audio/heart-heal.mp3" preload="auto"></audio>
   <script src="game.js"></script>
 </body>
 </html>
